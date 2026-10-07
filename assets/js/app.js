@@ -355,6 +355,7 @@
           ${r.emailState === "sending" ? `<p class="status st-run">wird gesendet … (Simulation)</p>`
             : r.emailState === "sent" ? `<p class="status st-run">✓ gesendet (simuliert) – warte auf Antwort …</p>`
             : r.emailState === "replied" ? `<p class="status st-done">✓ Antwort eingegangen (simuliert)</p><pre class="reply">${esc(r.reply)}</pre>`
+            : r.confirm === "email" ? confirmBox(item.id, "email", `E-Mail an ${item.email.to} freigeben? (Simulation – es wird nichts versendet.)`)
             : `<button class="btn btn-approve" data-act="approve-email" data-id="${item.id}" type="button">E-Mail freigeben &amp; senden</button>`}
         </div>`
       : "";
@@ -365,6 +366,7 @@
           <label class="label">Gesprächsleitfaden</label><textarea rows="5" data-act="call-field" data-id="${item.id}" ${r.callState ? "disabled" : ""}>${esc(item.call.script)}</textarea>
           ${r.callState === "calling" ? `<p class="status st-run">● Anruf läuft, wird aufgezeichnet … (Simulation)</p>`
             : r.callState === "recorded" ? `<p class="status st-done">✓ Anruf aufgezeichnet (simuliert)</p><pre class="reply">${esc(r.transcript)}</pre>`
+            : r.confirm === "call" ? confirmBox(item.id, "call", `Anruf bei ${c.org} freigeben und aufzeichnen? (Simulation – es wird kein Anruf getätigt.)`)
             : `<button class="btn btn-approve" data-act="approve-call" data-id="${item.id}" type="button">Anruf freigeben &amp; aufzeichnen</button>`}
         </div>`
       : "";
@@ -372,6 +374,14 @@
       <div class="bc-head"><h3>${esc(item.title)}</h3><span class="status ${done ? "st-done" : "st-wait"}">${done ? "Antwort liegt vor – bitte prüfen" : "wartet auf deine Freigabe"}</span></div>
       <p class="muted small">Kontakt: ${esc(c.org)} <span class="badge badge-demo">Demo-Kontakt</span></p>
       <div class="channels">${emailBlock}${callBlock}</div>
+    </div>`;
+  }
+
+  function confirmBox(id, channel, text) {
+    return `<div class="confirm-box" role="group" aria-label="Freigabe bestätigen">
+      <p class="small">${esc(text)}</p>
+      <button class="btn btn-approve" data-act="confirm-yes" data-channel="${channel}" data-id="${id}" type="button">Ja, freigeben</button>
+      <button class="btn btn-ghost" data-act="confirm-no" data-id="${id}" type="button">Abbrechen</button>
     </div>`;
   }
 
@@ -433,17 +443,14 @@
 
   async function approve(id, channel) {
     const item = state.checklist.find((i) => i.id === id);
-    const c = RR.agent.contact(item);
     const r = res(id);
     if (channel === "email") {
-      if (!confirm(`E-Mail an ${item.email.to} freigeben?\n\n(Simulation – es wird nichts versendet.)`)) return;
       r.emailState = "sending"; refreshCard(id);
       await sleep(900);
       r.emailState = "sent"; refreshCard(id);
       await sleep(2200);
       r.emailState = "replied"; r.reply = RR.agent.reply(item); refreshCard(id);
     } else {
-      if (!confirm(`Anruf bei ${c.org} freigeben und aufzeichnen?\n\n(Simulation – es wird kein Anruf getätigt.)`)) return;
       r.callState = "calling"; refreshCard(id);
       await sleep(2600);
       r.callState = "recorded"; r.transcript = RR.agent.transcript(item); refreshCard(id);
@@ -486,7 +493,22 @@
     download(`recherche-${state.analysis.type.id}-${state.analysis.targetYear}.json`, JSON.stringify(data, null, 2), "application/json");
   }
 
+  // Download klappt nicht überall (z. B. in eingebetteten Vorschauen) – daher zusätzlich zum Kopieren anzeigen
+  function showExport(name, content) {
+    let box = $("#export-box");
+    if (!box) {
+      box = Object.assign(document.createElement("div"), { id: "export-box", className: "card export-box" });
+      $("#board").after(box);
+    }
+    box.innerHTML = `<div class="bc-head"><h3>Export: ${esc(name)}</h3><span>
+        <button class="btn btn-secondary btn-small" data-act="copy-export" type="button">Kopieren</button>
+        <button class="btn btn-ghost btn-small" data-act="close-export" type="button">Schließen</button></span></div>
+      <textarea id="export-text" rows="12" readonly>${esc(content)}</textarea>`;
+    box.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
   function download(name, content, type) {
+    showExport(name, content);
     const url = URL.createObjectURL(new Blob([content], { type: type + ";charset=utf-8" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: name });
     document.body.appendChild(a);
@@ -541,13 +563,29 @@
         state.checklist.filter((i) => i.category === "agent").forEach((i) => (res(i.id).status = "open"));
         runAgent();
         break;
-      case "approve-email": approve(id, "email"); break;
-      case "approve-call": approve(id, "call"); break;
+      case "approve-email": res(id).confirm = "email"; refreshCard(id); break;
+      case "approve-call": res(id).confirm = "call"; refreshCard(id); break;
       case "export-md": exportMarkdown(); break;
       case "export-json": exportJson(); break;
       case "reset":
-        if (confirm("Alles zurücksetzen und neu starten?")) { state = fresh(); save(); render(); }
+        if (el.dataset.armed) { state = fresh(); save(); render(); $("#export-box")?.remove(); }
+        else {
+          el.dataset.armed = "1";
+          el.textContent = "Wirklich zurücksetzen?";
+          setTimeout(() => { delete el.dataset.armed; el.textContent = "Neu starten"; }, 4000);
+          return;
+        }
+        delete el.dataset.armed; el.textContent = "Neu starten";
         break;
+      case "confirm-yes": res(id).confirm = null; approve(id, el.dataset.channel); break;
+      case "confirm-no": res(id).confirm = null; refreshCard(id); break;
+      case "copy-export": {
+        const ta = $("#export-text");
+        const fallback = () => { ta.focus(); ta.select(); toast("Text markiert – mit Strg/Cmd+C kopieren."); };
+        try { navigator.clipboard.writeText(ta.value).then(() => toast("Kopiert."), fallback); } catch (err) { fallback(); }
+        break;
+      }
+      case "close-export": $("#export-box")?.remove(); break;
     }
   });
 
@@ -613,6 +651,7 @@
     if (r.status === "running") r.status = "open";
     if (r.emailState === "sending" || r.emailState === "sent") { r.emailState = null; }
     if (r.callState === "calling") r.callState = null;
+    r.confirm = null;
   });
   render();
 })();

@@ -233,3 +233,10 @@ p.status { margin-top: 10px; }
   details.facts dl { grid-template-columns: 1fr; }
   .progress-top .btn { margin-left: 0; width: 100%; }
 }
+
+/* In-Page-Bestätigung & Export */
+.confirm-box { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--approve); border-radius: 8px; background: var(--approve-bg); }
+.confirm-box p { flex-basis: 100%; margin: 0; }
+.confirm-box .btn-approve { margin-top: 0; }
+.export-box textarea { font: 0.8rem/1.5 ui-monospace, Menlo, Consolas, monospace; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; scroll-behavior: auto !important; } }
