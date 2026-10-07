@@ -1,143 +1,173 @@
 /*
- * Simulierter Agent. Nichts verlässt den Browser.
- * Jede Aktion liefert Log-Zeilen (für die Animation) und ein Ergebnis.
+ * Simulierter Agent (Offline-Modus). Nichts verlässt den Browser.
+ * Jede Aktion liefert Log-Zeilen für die Animation und entweder ein Ergebnis
+ * oder eine Übergabe an die Journalistin / den Journalisten ("handoff").
+ * Archivwerte stammen echt aus den Artikeln; aktuelle Werte sind simuliert (demo: true).
  */
 (function () {
   const RR = (window.RR = window.RR || {});
-  const D = () => RR.DEMO;
 
+  /* ---------- Formatierung ---------- */
+  const de = (v, d = 2) => (v == null || isNaN(v) ? "–" : v.toLocaleString("de-DE", { minimumFractionDigits: 0, maximumFractionDigits: d }));
   const eur = (v) => (v == null || isNaN(v) ? "–" : v.toFixed(2).replace(".", ",") + " €");
   const pct = (a, b) => (a && b ? ((b - a) / a) * 100 : null);
-  const fmtPct = (p) => (p == null ? "–" : (p >= 0 ? "+" : "") + p.toFixed(1).replace(".", ",") + " %");
+  const fmtPct = (p) => (p == null || isNaN(p) ? "–" : (p >= 0 ? "+" : "−") + Math.abs(p).toFixed(1).replace(".", ",") + " %");
+  const withUnit = (v, unit) => {
+    if (!unit) return de(v);
+    if (unit === "€") return eur(v);
+    if (unit.startsWith("%")) return de(v, 1) + " %";
+    return de(v) + " " + unit;
+  };
+  RR.fmt = { de, eur, pct, fmtPct, withUnit };
 
-  function sourceFor(tent) {
-    return tent.url ? { label: tent.url.replace(/^https?:\/\/(www\.)?/, ""), url: tent.url } : D().citySource;
+  // deterministische Pseudo-Zufallszahl 0..1 (damit die Demo stabil bleibt)
+  function hash(s) {
+    let h = 2166136261;
+    for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+    return ((h >>> 0) % 1000) / 1000;
   }
 
-  // Vorjahrespreis: zuerst aus den hochgeladenen Artikeln, sonst Demo-Wert
-  function prevPrice(tent, analysis) {
-    const fromArticle = (analysis.tentPrices || []).filter((p) => p.tent === tent.name && p.year === analysis.targetYear - 1).pop();
-    if (fromArticle) return { value: fromArticle.value, from: "Artikel: " + fromArticle.article, demo: false };
-    return { value: tent.prev, from: "Demo-Wert", demo: true };
+  /* ---------- Kontakte ---------- */
+  function contactFor(item, analysis) {
+    const bp = analysis && RR.getBlueprint(analysis.type.id);
+    const c = bp && bp.contacts && bp.contacts[item.contact];
+    if (c) return c;
+    if (item.contactOrg) return { org: item.contactOrg, email: "presse@beispiel.invalid", phone: "+49 000 000000" };
+    return RR.GENERIC_CONTACT;
   }
+  const reply = (item) => RR.SIM_TEXT.reply[item.contact] || RR.SIM_TEXT.reply.generic;
+  const transcript = (item) => RR.SIM_TEXT.transcript[item.contact] || RR.SIM_TEXT.transcript.generic;
 
+  const patternOf = (item, analysis) => analysis.patterns.find((p) => p.id === item.patternId) || { values: [], unit: "" };
+
+  /* ---------- Zeltpreise ---------- */
   function tentRows(analysis) {
-    return D().tents.map((t) => {
-      const prev = prevPrice(t, analysis);
-      return { tent: t.name, curr: t.curr, prev: prev.value, prevFrom: prev.from, delta: pct(prev.value, t.curr), source: sourceFor(t), verified: false };
+    const T = analysis.targetYear;
+    if (analysis.wiesn) {
+      return RR.DEMO.tents.map((t) => {
+        const art = (analysis.tentPrices || []).filter((p) => p.tent === t.name && p.year === T - 1).pop();
+        const prev = art ? art.value : t.prev;
+        return { tent: t.name, curr: t.curr, prev, prevFrom: art ? `Artikel ${art.year}` : "Demo-Wert", delta: pct(prev, t.curr),
+          source: t.url ? { label: t.url.replace(/^https?:\/\/(www\.)?/, ""), url: t.url } : RR.DEMO.citySource, verified: false };
+      });
+    }
+    // anderes Volksfest: Zelte aus den Artikeln, jüngster Archivpreis als Basis
+    const latest = {};
+    (analysis.tentPrices || []).forEach((p) => { if (!latest[p.tent] || p.year >= latest[p.tent].year) latest[p.tent] = p; });
+    return Object.values(latest).map((p) => {
+      const curr = Math.round(p.value * (1.02 + 0.03 * hash(p.tent)) * 10) / 10;
+      return { tent: p.tent, curr, prev: p.value, prevFrom: `Artikel ${p.year || "?"}`, delta: pct(p.value, curr), source: { label: "Website des Festwirts" }, verified: false };
     });
   }
 
+  const handoff = (log, text) => ({ log: [...log, "→ Übergabe an Journalist:in"], handoff: text });
+
   const ACTIONS = {
-    tent_prices(analysis) {
-      const rows = tentRows(analysis);
+    tent_prices(item, an) {
+      const rows = tentRows(an);
+      if (!rows.length) return handoff(["Suche Zeltnamen im Archiv …", "Keine Zelte mit Preisen gefunden."], "Im Archiv stehen keine Zelte mit Preisen. Bitte die Preisliste des Veranstalters als Quelle hinterlegen.");
       const log = [];
-      rows.forEach((r) => {
-        log.push(`Öffne ${r.source.label} …`);
-        log.push(`„Maß“ gefunden bei ${r.tent}: ${eur(r.curr)}`);
-      });
-      log.push(`Abgleich mit ${D().citySource.label}: ${rows.length} Zelte, keine Abweichung.`);
-      return { log, result: { kind: "tent_table", rows } };
+      rows.forEach((r) => log.push(`Öffne ${r.source.label} … „Maß“ bei ${r.tent}: ${eur(r.curr)}`));
+      if (an.wiesn) log.push(`Abgleich mit ${RR.DEMO.citySource.label}: ${rows.length} Zelte, keine Abweichung.`);
+      const cs = rows.map((r) => r.curr);
+      return { log, result: { kind: "tents", rows, demo: true, sources: rows.length, summary: `${rows.length} Zelte · ${eur(Math.min(...cs))} – ${eur(Math.max(...cs))}` } };
     },
 
-    price_range(analysis) {
-      const rows = tentRows(analysis).sort((a, b) => a.curr - b.curr);
+    price_range(item, an) {
+      const rows = tentRows(an).sort((a, b) => a.curr - b.curr);
+      if (!rows.length) return handoff(["Keine Zeltpreise verfügbar."], "Ohne Zeltpreise lässt sich keine Spanne bilden.");
       const min = rows[0], max = rows[rows.length - 1];
       return {
         log: ["Sortiere Zeltpreise …", `Minimum: ${min.tent}`, `Maximum: ${max.tent}`],
-        result: {
-          kind: "facts",
+        result: { kind: "facts", demo: true, sources: 2, summary: `${eur(min.curr)} – ${eur(max.curr)}`, metrics: { min: min.curr, max: max.curr },
           facts: [
-            { label: "Günstigstes Zelt", value: `${min.tent} – ${eur(min.curr)}`, source: min.source },
-            { label: "Teuerstes Zelt", value: `${max.tent} – ${eur(max.curr)}`, source: max.source },
-            { label: "Spanne", value: `${eur(min.curr)} bis ${eur(max.curr)}`, source: D().citySource },
-          ],
-        },
+            { label: "Günstigstes Zelt", value: `${min.tent}: ${eur(min.curr)}`, source: min.source, demo: true },
+            { label: "Teuerstes Zelt", value: `${max.tent}: ${eur(max.curr)}`, source: max.source, demo: true },
+          ] },
       };
     },
 
-    yoy(analysis) {
-      const rows = tentRows(analysis);
+    yoy(item, an) {
+      const rows = tentRows(an);
+      if (!rows.length) return handoff(["Keine Zeltpreise verfügbar."], "Ohne Preise kein Vorjahresvergleich.");
       const avg = (k) => rows.reduce((s, r) => s + r[k], 0) / rows.length;
-      const a = avg("prev"), b = avg("curr");
-      const fromArticles = rows.filter((r) => !r.prevFrom.startsWith("Demo")).length;
+      const a = avg("prev"), b = avg("curr"), d = pct(a, b);
+      const fromArt = rows.filter((r) => r.prevFrom.startsWith("Artikel")).length;
       return {
-        log: ["Lade Vorjahrespreise …", `${fromArticles} von ${rows.length} Vorjahreswerten aus den hochgeladenen Artikeln übernommen.`, "Berechne Durchschnitt und Veränderung …"],
-        result: {
-          kind: "facts",
+        log: ["Lade Vorjahrespreise …", `${fromArt} von ${rows.length} Vorjahreswerten stammen aus den Archivartikeln.`, "Berechne Durchschnitt und Veränderung …"],
+        result: { kind: "facts", demo: true, sources: 1, summary: `Ø ${fmtPct(d)}`, metrics: { prev: a, curr: b, deltaPct: d },
           facts: [
-            { label: `Ø Maßpreis ${analysis.targetYear - 1}`, value: eur(a), source: { label: fromArticles ? "Artikel + Demo-Werte" : "Demo-Werte" } },
-            { label: `Ø Maßpreis ${analysis.targetYear}`, value: eur(b), source: D().citySource },
-            { label: "Veränderung", value: fmtPct(pct(a, b)), source: { label: "berechnet" } },
-          ],
-        },
+            { label: `Ø Maßpreis ${an.targetYear - 1}`, value: eur(a), source: { label: fromArt ? "Archiv + Demo-Werte" : "Demo-Werte" } },
+            { label: `Ø Maßpreis ${an.targetYear}`, value: eur(b), source: an.wiesn ? RR.DEMO.citySource : { label: "Zeltpreise (siehe oben)" }, demo: true },
+            { label: "Veränderung", value: fmtPct(d), source: { label: "berechnet" } },
+          ] },
       };
     },
 
-    history(analysis) {
-      const series = analysis.timeline.map((t) => ({ year: t.year, min: t.min, max: t.max, source: { label: "Archiv: " + t.sources.join(", ") } }));
-      const curr = D().tents.map((t) => t.curr);
-      if (!series.some((s) => s.year === analysis.targetYear)) {
-        series.push({ year: analysis.targetYear, min: Math.min(...curr), max: Math.max(...curr), source: D().citySource, demo: true });
-      }
+    history(item, an) {
+      const pts = an.timeline.points.map((t) => ({ year: t.year, min: t.min, max: t.max, source: { label: "Archiv: " + t.sources.join(", ") } }));
+      const curr = tentRows(an).map((r) => r.curr);
+      if (curr.length && !pts.some((p) => p.year === an.targetYear)) pts.push({ year: an.targetYear, min: Math.min(...curr), max: Math.max(...curr), source: { label: "aktuelle Recherche" }, demo: true });
+      if (pts.length < 2) return handoff(["Zu wenige Jahreswerte im Archiv."], "Für eine Preisreihe braucht es ältere Artikel oder eine historische Quelle.");
       return {
-        log: [`Lese ${analysis.timeline.length} Jahreswerte aus den Archivartikeln …`, `Ergänze ${analysis.targetYear} aus aktueller Recherche …`],
-        result: { kind: "series", series },
+        log: [`Lese ${an.timeline.points.length} Jahreswerte aus den Archivartikeln …`, `Ergänze ${an.targetYear} aus der aktuellen Recherche …`],
+        result: { kind: "series", series: pts, sources: pts.length, summary: `${pts[0].year}: ${eur(pts[0].max)} → ${pts[pts.length - 1].year}: ${eur(pts[pts.length - 1].max)}` },
       };
     },
 
-    soft_drinks() {
+    soft_drinks(item, an) {
+      if (!an.wiesn) return handoff(["Keine Getränkekarten hinterlegt."], "Getränkepreise bitte bei den Festwirten erfragen.");
       return {
-        log: D().softDrinks.map((s) => `Getränkekarte ${s.tent} geprüft`),
-        result: {
-          kind: "facts",
-          facts: D().softDrinks.map((s) => ({ label: s.tent, value: `Wasser ${eur(s.water)} · Spezi ${eur(s.spezi)}`, source: D().citySource })),
-        },
+        log: RR.DEMO.softDrinks.map((s) => `Getränkekarte ${s.tent} geprüft`),
+        result: { kind: "facts", demo: true, sources: RR.DEMO.softDrinks.length, summary: `Wasser bis ${eur(Math.max(...RR.DEMO.softDrinks.map((s) => s.water)))}`,
+          facts: RR.DEMO.softDrinks.map((s) => ({ label: s.tent, value: `Wasser ${eur(s.water)} · Spezi ${eur(s.spezi)}`, source: RR.DEMO.citySource, demo: true })) },
       };
     },
 
-    archive_numbers(analysis) {
-      const facts = [];
-      for (const p of analysis.per) {
-        for (const dp of p.facts.datedPrices.slice(0, 4)) {
-          facts.push({ label: `${dp.year || "?"}`, value: `${eur(dp.value)} – „${dp.sentence.slice(0, 110)}${dp.sentence.length > 110 ? "…" : ""}“`, source: { label: "Archiv: " + p.title } });
-        }
-        p.facts.percents.slice(0, 2).forEach((x) => facts.push({ label: `${p.year || "?"}`, value: x, source: { label: "Archiv: " + p.title } }));
-      }
+    metric_lookup(item, an) {
+      const p = patternOf(item, an);
+      const src = item.source || { label: "Offizielle Quelle" };
+      if (!p.values.length) return handoff([`Suche „${item.title}“ in ${src.label} …`, "Kein Vergleichswert im Archiv, keine Quelle hinterlegt."], `Der Agent hat keine verlässliche Quelle gefunden. Gesucht wurde in: ${src.label}.`);
+      const latest = p.values.filter((v) => v.year).sort((a, b) => a.year - b.year || a.value - b.value).pop() || p.values[p.values.length - 1];
+      const drift = 0.01 + hash(item.title + latest.value) * 0.06;
+      const dec = latest.money || String(latest.value).includes(".") ? 2 : 0;
+      const curr = Math.round(latest.value * (1 + drift) * 10 ** dec) / 10 ** dec;
+      const d = pct(latest.value, curr);
       return {
-        log: ["Durchsuche Archivartikel nach Kennzahlen …", `${facts.length} Werte mit Fundstelle gesammelt.`],
-        result: { kind: "facts", facts, archive: true },
+        log: [`Öffne ${src.label} …`, `Archivwert ${latest.year || ""}: ${latest.raw}`, `Aktueller Wert gefunden: ${withUnit(curr, p.unit)}`],
+        result: { kind: "facts", demo: true, sources: 1, summary: `${withUnit(curr, p.unit)} (${fmtPct(d)})`, metrics: { prev: latest.value, curr, deltaPct: d, unit: p.unit },
+          facts: [
+            { label: `Archiv ${latest.year || ""}`, value: latest.raw, source: { label: "Archiv: " + latest.title } },
+            { label: `Aktuell ${an.targetYear}`, value: withUnit(curr, p.unit), source: src, demo: true },
+            { label: "Veränderung", value: fmtPct(d), source: { label: "berechnet" } },
+          ] },
       };
     },
 
-    archive_years(analysis) {
-      const facts = analysis.per.map((p) => ({ label: String(p.year || "?"), value: `Erwähnte Jahre: ${p.facts.years.join(", ") || "–"}`, source: { label: "Archiv: " + p.title } }));
-      return { log: ["Sammle Jahresangaben …"], result: { kind: "facts", facts, archive: true } };
-    },
-
-    // Kein bekannter Quellen-Pfad -> Agent gibt an Journalist:in ab
-    lookup() {
+    archive_compare(item, an) {
+      const p = patternOf(item, an);
+      const byYear = {};
+      p.values.forEach((v) => { if (v.year && (!byYear[v.year] || v.value > byYear[v.year].value)) byYear[v.year] = v; });
+      const ys = Object.values(byYear).sort((a, b) => a.year - b.year);
+      if (ys.length < 2) return handoff(["Vergleiche Archivwerte …", "Zu wenige Jahreswerte für einen Vergleich."], "Im Archiv gibt es zu wenige vergleichbare Jahreswerte. Bitte den Vorjahreswert ergänzen.");
+      const facts = ys.map((v, i) => ({ label: String(v.year), value: v.raw + (i ? `  (${fmtPct(pct(ys[i - 1].value, v.value))})` : ""), source: { label: "Archiv: " + v.title } }));
+      const avg = ys.slice(1).reduce((s, v, i) => s + pct(ys[i].value, v.value), 0) / (ys.length - 1);
       return {
-        log: ["Suche offizielle Quelle …", "Keine verlässliche Quelle hinterlegt.", "→ Übergabe an Journalist:in"],
-        handoff: "Der Agent konnte keine verlässliche, offizielle Quelle finden. Bitte Quelle festlegen – beim nächsten Durchlauf merkt sich der Blueprint sie.",
+        log: [`Vergleiche ${ys.length} Jahreswerte aus dem Archiv …`, `Durchschnittliche Veränderung: ${fmtPct(avg)} pro Jahr`],
+        result: { kind: "facts", sources: ys.length, summary: `Trend ${fmtPct(avg)} / Jahr`, metrics: { trendPct: avg }, facts },
       };
+    },
+
+    lookup(item) {
+      const src = item.source ? item.source.label : "offizielle Quellen";
+      return handoff([`Suche in ${src} …`, "Kein maschinenlesbarer Wert gefunden."], `Der Agent konnte das nicht automatisch finden (gesucht: ${src}). Im KI-Modus versucht er es per Websuche.`);
     },
   };
 
   function run(item, analysis) {
     const fn = ACTIONS[item.action] || ACTIONS.lookup;
-    return fn(analysis);
+    return fn(item, analysis);
   }
 
-  function contact(item) {
-    return D().contacts[item.contact] || D().contacts.generic;
-  }
-  function reply(item) {
-    return D().replies[item.contact] || D().replies.generic;
-  }
-  function transcript(item) {
-    return D().transcripts[item.contact] || D().transcripts.generic;
-  }
-
-  RR.agent = { run, contact, reply, transcript, eur, fmtPct };
+  RR.agent = { run, contactFor, reply, transcript, tentRows };
 })();
