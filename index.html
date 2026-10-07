@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Reverse Reporting</title>
+  <meta name="description" content="Prototyp: Aus früheren Artikeln einer wiederkehrenden Geschichte einen Recherche-Blueprint ableiten und von einem Agenten abarbeiten lassen.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a4f96'/%3E%3Cpath d='M9 22V10h7a4 4 0 0 1 0 8h-7m7 0 5 4' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+  <link rel="stylesheet" href="assets/css/br.css">
+</head>
+<body>
+  <a class="skip" href="#main">Zum Inhalt</a>
+  <header class="top">
+    <div class="top-inner">
+      <button class="brand" data-act="home" type="button" aria-label="Zur Startseite">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7"/><path d="M9 22V10h7a4 4 0 0 1 0 8h-7m7 0 5 4"/></svg>
+        <span class="brand-name">Reverse Reporting</span>
+        <span class="brand-sub">Prototyp · BR-Hackathon</span>
+      </button>
+      <div class="top-actions">
+        <button class="ai-pill" id="ai-pill" data-act="open-settings" type="button"></button>
+        <button class="btn btn-quiet btn-sm" data-act="reset" type="button"><span>Neu starten</span></button>
+      </div>
+    </div>
+    <nav class="rail" id="rail" aria-label="Arbeitsschritte"></nav>
+  </header>
+
+  <main id="main" class="main" tabindex="-1"></main>
+
+  <div class="scrim" id="scrim" data-act="close-drawer" hidden></div>
+  <aside class="drawer" id="drawer" aria-label="Details" hidden></aside>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+
+  <footer class="foot">
+    <p><span class="badge badge-demo">Demo</span> Offline-Prototyp: Aktuelle Werte, Kontakte, Antworten und Transkripte sind simuliert, sofern nicht der KI-Modus mit Websuche genutzt wird. Es werden keine E-Mails versendet und keine Anrufe geführt. Alle Daten bleiben im Browser.</p>
+  </footer>
+
+  <script src="assets/js/demo-data.js"></script>
+  <script src="assets/js/blueprints.js"></script>
+  <script src="assets/js/samples.js"></script>
+  <script src="assets/js/analyze.js"></script>
+  <script src="assets/js/agent-sim.js"></script>
+  <script src="assets/js/reconcile.js"></script>
+  <script src="assets/js/story.js"></script>
+  <script src="assets/js/ingest.js"></script>
+  <script src="assets/js/ai.js"></script>
+  <script src="assets/js/ui.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script src="assets/js/views/home.js"></script>
+  <script src="assets/js/views/archive.js"></script>
+  <script src="assets/js/views/blueprint.js"></script>
+  <script src="assets/js/views/research.js"></script>
+  <script src="assets/js/views/reconcile.js"></script>
+  <script src="assets/js/views/story.js"></script>
+  <script src="assets/js/views/settings.js"></script>
+</body>
+</html>
