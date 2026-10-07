@@ -36,10 +36,12 @@
     id: "volksfest-bierpreis",
     label: "Volksfest – Bierpreis",
     short: "Bierpreis",
+    // Gewichte: Preis-Wörter zählen viel, allgemeine Fest-Wörter wenig
     keywords: [
-      ["maß", 3], ["bierpreis", 4], ["festzelt", 2], ["bierzelt", 2], ["wiesn", 2], ["oktoberfest", 2],
-      ["volksfest", 2], ["dult", 2], ["gäubodenfest", 2], ["frühlingsfest", 2], ["bergkirchweih", 2],
-      ["starkbier", 2], ["festwirt", 2], ["wirte", 1], ["anstich", 1], ["o'zapft", 1],
+      ["maß", 3], ["bierpreis", 4], ["maßpreis", 4], [/kostet die maß|die maß kostet/i, 4], [/\d+,\d{2}\s?(?:€|euro)/i, 2],
+      ["teurer", 2], ["festwirt", 2], ["wiesnwirt", 2], ["wirte", 1],
+      ["festzelt", 1], ["bierzelt", 1], ["wiesn", 1], ["oktoberfest", 1], ["volksfest", 1],
+      ["dult", 2], ["gäubodenfest", 2], ["frühlingsfest", 2], ["bergkirchweih", 2], ["starkbier", 2],
     ],
     // Name des Festes aus dem Text
     events: [
@@ -93,6 +95,61 @@
       { id: "reaction", label: "Reaktionen / Kritik", match: /besucherin|ein besucher|gäste (?:ärger|schimpf|reagier)|ärgern|kritik|steuerzahler|zu teuer|happig/i,
         item: human("Stimmen von Besucher:innen (Umfrage vor Ort)", ["Was sagen Sie zum Maßpreis?", "Trinken Sie deshalb weniger?"],
           "Original-Reporting vor Ort – das kann kein Agent ersetzen.", { why: "Reaktionen geben der Geschichte ein Gesicht." }) },
+    ],
+  };
+
+
+  /* ---------------- Festauftakt: Run, Einlass, Anstich ---------------- */
+  const auftakt = {
+    id: "festauftakt",
+    label: "Festauftakt – Run & Anstich",
+    short: "Auftakt",
+    keywords: [
+      [/\brun\b/i, 4], ["ansturm", 3], ["einlass", 3], ["warteschlange", 3], ["anstich", 3], ["anzapf", 3], ["angezapft", 3],
+      ["bierfass", 2], ["o'zapft", 2], ["auftakt", 2], ["eröffn", 2], ["ordner", 2], ["security", 2], ["absperrung", 2],
+      ["glockenschlag", 2], ["festgelände", 1], ["beginnt", 1], ["startet", 1], ["begonnen", 1],
+    ],
+    events: volksfest.events,
+    contacts: {
+      polizei: { org: "Polizei – Pressestelle", email: "pressestelle@polizei.beispiel.invalid", phone: "+49 89 000000-0" },
+      rettung: { org: "Sanitätsdienst – Pressestelle", email: "presse@sanitaeter.beispiel.invalid", phone: "+49 89 000000-4" },
+      stadt: { org: "Stadt – Veranstaltungsbüro / Festleitung", email: "presse.fest@stadt.beispiel.invalid", phone: "+49 89 000000-2" },
+    },
+    features: [
+      { id: "opening", label: "Einlass: Uhrzeit und Eingänge", match: /\b(?:9|neun)(?::\d{2})? uhr|einlass|eingäng|eingang|haupteingang|bavaria|glockenschlag|freigegeben|geöffnet/i,
+        item: agent("Einlass {YEAR}: Uhrzeit und Eingänge", "lookup", { source: { label: "Offizielles Programm (oktoberfest.de)", url: "https://www.oktoberfest.de" }, why: "Jeder Artikel nennt, wann und wo das Gelände öffnet." }) },
+      { id: "run", label: "Run und Warteschlange", match: /\brun\b|ansturm|sprint|rannt|renn|warteschlange|schlange|anstand|gewartet|ausgeharrt|seit (?:ein|zwei|drei|vier|\d+) uhr|nacht/i,
+        item: human("Run und Warteschlange: Beobachtung vor Ort", ["Seit wann warten Sie?", "Warum tun Sie sich das an?", "Welches Zelt ist Ihr Ziel?"],
+          "Reportage vor Ort: Beobachtung, Stimmung, O-Töne aus der Schlange.", { why: "Der Run ist in jedem Artikel die zentrale Szene." }) },
+      { id: "security", label: "Sicherheit und Zwischenfälle", match: /ordner|security|sicherheit|absperr|stürz|gestürzt|verletz|blessur|polizei|sanitäts|kontrollverlust|chaos/i,
+        item: approve("Sicherheit: Zwischenfälle beim Einlass", "polizei",
+          mail("Presseanfrage BR: Einlass {EVENT} {YEAR}", "1. Gab es beim Einlass Zwischenfälle oder Verletzte?\n2. Wie viele Ordner und Einsatzkräfte waren am Eingang?\n3. Was hat sich gegenüber {PREV} geändert?"),
+          script("1. Gab es Zwischenfälle oder Verletzte beim Run?\n2. Wie lief der Einlass im Vergleich zum Vorjahr?"),
+          { why: "Ordner, Stürze und Sicherheit kommen in jedem Artikel vor." }) },
+      { id: "tapping", label: "Anstich: Zeit, Ort, wer", match: /anzapf|angezapft|anstich|o'zapft|bierfass|erste fass/i,
+        item: agent("Anstich {YEAR}: Uhrzeit, Zelt und wer anzapft", "lookup", { source: { label: "Offizielles Programm (oktoberfest.de)", url: "https://www.oktoberfest.de" },
+          why: "Der Anstich durch die Oberbürgermeisterin / den Oberbürgermeister ist fester Bestandteil. Wie viele Schläge es brauchte, gibt es nur live." }) },
+      { id: "vip", label: "Erste Maß und Prominenz", match: /ministerpräsident|prominenz|erste maß|ehrengäste/i,
+        item: human("Erste Maß, Prominenz und Schläge beim Anstich", ["Wie viele Schläge hat der Anstich gebraucht?", "Wer war im Zelt?"], "Live im Zelt beobachten.", { why: "Wer die erste Maß bekommt, wird jedes Jahr berichtet." }) },
+      { id: "edition", label: "Wievielte Ausgabe", match: (s) => /\b\d{2,3}\.\s*(?:oktoberfest|wiesn|volksfest|auflage|ausgabe)/i.test(s) || /\bdie \d{2,3}\./i.test(s),
+        item: agent("Ausgabe {YEAR}: das wievielte Fest?", "edition", { why: "Die Zählung („190. Oktoberfest“) steht in jedem Artikel." }) },
+      { id: "duration", label: "Dauer / letzter Festtag", match: /bis (?:zum )?\d{1,2}\. (?:september|oktober)|endet|dauert|tage lang|feiern bis|letzte[nr]? (?:wiesn)?tag/i,
+        item: agent("Dauer und letzter Festtag {YEAR}", "lookup", { source: { label: "Offizielle Termine (oktoberfest.de)", url: "https://www.oktoberfest.de" }, why: "Das Enddatum wird regelmäßig genannt." }) },
+      { id: "visitors", label: "Besucherprognose", match: /besucher(?:innen)? werden erwartet|millionen besucher|millionen gäste|aus dem ausland|erwartet .*besucher|besucherzahl/i,
+        item: approve("Besucherprognose der Stadt", "stadt", mail("Presseanfrage BR: Besucherprognose {EVENT} {YEAR}", "Mit wie vielen Besucherinnen und Besuchern rechnen Sie {YEAR}, und wie hoch ist der Anteil aus dem Ausland?"), null,
+          { why: "Die erwartete Besucherzahl gehört zum Auftakt." }) },
+      { id: "price", label: "Maßpreis", valueFilter: (n) => n.money && n.value >= 5, match: (s) => PRICE.test(s) && /maß|liter|bier/i.test(s),
+        item: agent("Maßpreis {YEAR}", "metric_lookup", { metric: true, source: { label: "Bierpreisliste der Stadt (oktoberfest.de)", url: "https://www.oktoberfest.de" }, why: "Der aktuelle Bierpreis wird beim Auftakt erwähnt." }) },
+      { id: "grounds", label: "Festgelände: Zelte, Schausteller", match: /\d+ (?:große[nr]? )?(?:festzelte|festhallen|zelte)|festhallen|standl|schausteller|fahrgeschäft|oide wiesn|oidn wiesn/i,
+        item: agent("Festgelände {YEAR}: Zelte, Schausteller, Oide Wiesn", "lookup", { source: { label: "Offizielle Zahlen (oktoberfest.de)", url: "https://www.oktoberfest.de" }, why: "Zahl der Zelte und Fahrgeschäfte wird oft genannt." }) },
+      { id: "weather", label: "Wetter", match: /wetter|wolkenlos|sonnig|sonne|regen|gewitter|\d+ grad/i,
+        item: agent("Wetter am Eröffnungstag", "lookup", { source: { label: "Deutscher Wetterdienst", url: "https://www.dwd.de" }, why: "Das Wetter prägt den Auftakt." }) },
+      { id: "compare", label: "Vergleich mit dem Vorjahr", match: /vorjahr|vergangenen jahr|im letzten jahr|anders als|heuer/i,
+        item: agent("Vergleich mit dem Vorjahr: Wie lief es damals?", "archive_recap", { why: "Artikel vergleichen den Ablauf mit dem Vorjahr." }) },
+      { id: "voices", label: "O-Töne von Besucher:innen", match: (s) => /[„"][^„"“”]{6,}[“"]/.test(s) && /sagt|brüllt|ruft|meint|pro-tipp|freu/i.test(s),
+        item: human("O-Töne von Besucher:innen", ["Wie war der Run?", "Wie lange haben Sie gewartet?"], "Vor Ort einholen.", { why: "Jeder Artikel lebt von Stimmen aus der Menge." }) },
+      { id: "broadcast", label: "Übertragung / Livestream", match: /br fernsehen|livestream|überträgt|übertrag|mediathek|live in der sendung/i,
+        item: agent("Übertragung: BR live und Livestream", "lookup", { source: { label: "BR-Programm" }, why: "Hinweis auf die Live-Übertragung ist Standard." }) },
     ],
   };
 
@@ -224,7 +281,7 @@
     ],
   };
 
-  RR.BLUEPRINTS = [volksfest, haushalt, wahl, saison, bilanz];
+  RR.BLUEPRINTS = [volksfest, auftakt, haushalt, wahl, saison, bilanz];
 
   // Allgemeine Antworten / Transkripte für die Simulation
   RR.SIM_TEXT = {

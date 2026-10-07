@@ -63,6 +63,7 @@
           if (d > Math.max(8, t * 2)) out.push({ level: "warn", item: item.id, title: `Abweichung vom Archivtrend: ${item.title}`, text: `${F().fmtPct(R.metrics.deltaPct)} – deutlich mehr als im Archiv üblich. Wert prüfen.` });
           else out.push({ level: "ok", item: item.id, title: `Plausibel: ${item.title}`, text: `${F().fmtPct(R.metrics.deltaPct)} liegt im Rahmen des Archivtrends.` });
         }
+        if (R.carried) out.push({ level: "warn", item: item.id, title: `Aus dem Vorjahr übernommen: ${item.title}`, text: "Der Agent hat keinen aktuellen Wert, nur die Angabe aus dem Archiv. Für dieses Jahr bestätigen." });
         if (R.ai && R.confidence === "low") out.push({ level: "warn", item: item.id, title: `Unsichere Quelle: ${item.title}`, text: "Claude hat den Wert nur mit geringer Sicherheit gefunden." });
       }
 

@@ -36,14 +36,25 @@
     const answerOf = (i) => {
       if (!i) return null;
       const r = res(i);
-      if (i.category === "agent" && r.status === "done" && r.result) return { kind: "agent", r };
+      // Vorschläge aus dem Archiv sind noch keine Fakten – erscheinen als Lücke
+      if (i.category === "agent" && r.status === "done" && r.result && !r.result.carried) return { kind: "agent", r };
       if (r.reply) return { kind: "text", text: replyCore(r.reply), org: RR.agent.contactFor(i, an).org.split(" – ")[0] };
       if (r.transcript) return { kind: "quote", text: transcriptQuote(r.transcript) };
       if (r.done && r.note) return { kind: "note", text: r.note.trim() };
       return null;
     };
 
-    if (an.type.id === "volksfest-bierpreis") {
+    const carriedGap = (i) => (res(i).result && res(i).result.carried ? gap(i, "Bestätigen: " + i.title) : gap(i));
+
+    if (an.type.id === "festauftakt") {
+      const ev = an.type.event || "Fest";
+      const ed = byAction("edition"), run = byPat("run");
+      [ed, run].forEach((i) => i && used.add(i.id));
+      const E = answerOf(ed);
+      headline = E ? [{ t: `${ev} ${Y}: Das ${E.r.result.summary.replace(/\s*\(\d{4}\)$/, "")} hat begonnen` }] : [{ t: `${ev} ${Y} hat begonnen – ` }, gap(ed, "Ausgabe")];
+      const R = answerOf(run);
+      lead = [{ t: `Mit dem traditionellen Run auf die Festzelte ist das ${ev} ${Y} eröffnet. ` }, R ? { t: R.text } : gap(run, "Szene vom Run (vor Ort)")];
+    } else if (an.type.id === "volksfest-bierpreis") {
       const ev = an.type.event || "Volksfest";
       const tents = byAction("tent_prices"), yoy = byAction("yoy"), hist = byAction("history");
       [tents, yoy, hist, byAction("price_range")].forEach((i) => i && used.add(i.id));
@@ -78,7 +89,7 @@
     for (const i of items) {
       if (used.has(i.id)) continue;
       const a = answerOf(i);
-      if (!a) { paras.push([gap(i)]); continue; }
+      if (!a) { paras.push([carriedGap(i)]); continue; }
       if (a.kind === "agent") paras.push([{ t: `${i.title.replace(new RegExp(`\\s*\\(?${Y}\\)?$`), "")}: ${a.r.result.summary}.` }]);
       else if (a.kind === "quote") paras.push([{ t: `„${a.text.replace(/[„“"]/g, "")}“ (O-Ton aus Telefonat, vor Veröffentlichung autorisieren)` }]);
       else if (a.kind === "note") paras.push([{ t: a.text }]);

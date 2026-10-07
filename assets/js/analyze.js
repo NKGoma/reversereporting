@@ -37,7 +37,7 @@
     let lm;
     while ((lm = lineRe.exec(text))) {
       const line = lm[0];
-      const sRe = /.+?(?:[.!?]+["“]?(?=\s+[A-ZÄÖÜ„"])|$)/g;
+      const sRe = /.+?(?:(?<!(?:^|[^\d.,])\d{1,3})[.!?]+["“]?(?=\s+[A-ZÄÖÜ„"])|$)/g;
       let sm;
       while ((sm = sRe.exec(line))) {
         const raw = sm[0];
@@ -162,13 +162,32 @@
     return new RegExp("(?:^|[^a-zäöüß])" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
   }
 
+  // Gewichteter Treffer-Score pro Artikel: Häufigkeit (max. 3) × Gewicht, Treffer im Titel zählen doppelt extra.
+  // Der Story-Typ mit dem höchsten Durchschnitt über alle Artikel gewinnt.
+  const kwLabel = (k) => (typeof k === "string" ? k : ((k.source.replace(/\\[a-z]/gi, " ").match(/[a-zäöüß']{3,}/i) || ["Muster"])[0]));
+  function kwGlobal(k) {
+    return typeof k === "string"
+      ? new RegExp("(?:^|[^a-zäöüß])" + k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi")
+      : new RegExp(k.source, "gi");
+  }
+
   function detectType(articles) {
-    const all = articles.map((a) => a.text).join("\n");
     const ranked = RR.BLUEPRINTS.map((bp) => {
-      const matched = bp.keywords.filter(([k]) => kwRe(k).test(all));
-      const w = matched.reduce((s, [, x]) => s + x, 0);
-      return { bp, score: Math.min(1, w / 12), matched: matched.map(([k]) => k) };
-    }).sort((a, b) => b.score - a.score);
+      const matched = new Set();
+      const sums = articles.map((a) => {
+        const title = a.text.split("\n")[0] || "";
+        let sum = 0;
+        for (const [k, w] of bp.keywords) {
+          const n = Math.min(3, (a.text.match(kwGlobal(k)) || []).length);
+          if (!n) continue;
+          matched.add(kwLabel(k));
+          sum += w * n + (kwGlobal(k).test(title) ? w * 2 : 0);
+        }
+        return sum;
+      });
+      const raw = sums.reduce((x, y) => x + y, 0) / Math.max(1, sums.length);
+      return { bp, raw, score: Math.min(1, raw / 15), matched: [...matched] };
+    }).sort((a, b) => b.raw - a.raw);
     return ranked;
   }
 
@@ -344,13 +363,27 @@
     const topic = bp ? null : guessTopic(per);
     const features = bp ? bp.features : genericFeatures(per, n, topic);
 
-    const patterns = features.map((f) => {
+    const toPattern = (f) => {
       const evidence = collectEvidence(per, f.match);
       const hits = uniq(evidence.map((e) => e.articleId)).length;
       const item = f.item;
       const vals = item.metric ? archiveValues(evidence, f.valueFilter) : { unit: "", values: [] };
       return { id: f.id, label: f.label, hits, recurring: hits >= threshold, evidence, values: vals.values, unit: vals.unit, item };
-    });
+    };
+    const patterns = features.map(toPattern);
+    // Standard-Elemente einer bekannten Vorlage, die nur einmal belegt sind, trotzdem vorschlagen
+    if (bp) patterns.forEach((p) => { p.suggested = !p.recurring && p.hits >= 1; });
+
+    // Bekannter Typ: zusätzlich entdeckte Elemente aus den Artikeln, die die Vorlage noch nicht abdeckt
+    if (bp) {
+      const covered = new Set(patterns.filter((p) => p.recurring).flatMap((p) => p.evidence.map((e) => e.articleId + ":" + e.start)));
+      genericFeatures(per, n, event)
+        .map(toPattern)
+        .filter((p) => p.recurring && p.evidence.length)
+        .filter((p) => p.evidence.filter((e) => covered.has(e.articleId + ":" + e.start)).length / p.evidence.length < 0.6)
+        .slice(0, 4)
+        .forEach((p) => patterns.push({ ...p, id: "x_" + p.id, discovered: true }));
+    }
 
     // Zeitreihe für das Diagramm
     let timeline = { label: "", unit: "", points: [] };
@@ -397,7 +430,7 @@
     return {
       engine: "offline",
       type,
-      alternatives: ranked.slice(0, 3).map((r) => ({ id: r.bp.id, label: r.bp.label, score: r.score })),
+      alternatives: ranked.slice(0, 3).map((r) => ({ id: r.bp.id, label: r.bp.label, score: r.score, raw: r.raw })),
       per: per.map(({ text, sents, ...rest }) => rest),
       patterns,
       threshold,

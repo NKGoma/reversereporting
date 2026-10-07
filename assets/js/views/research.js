@@ -13,6 +13,7 @@
     const r = res(item.id);
     if (item.category === "agent") {
       if (r.status === "running") return { key: "run", label: "sucht …", preview: r.log[r.log.length - 1] || "startet" };
+      if (r.status === "done" && r.result.carried) return { key: "wait", label: "Vorschlag aus Archiv – bestätigen", preview: r.result.summary };
       if (r.status === "done") return { key: "done", label: "gefunden – prüfen", preview: r.result.summary };
       if (r.status === "handoff") return r.done ? { key: "done", label: "von dir erledigt", preview: r.note || "erledigt" } : { key: "human", label: "an dich übergeben", preview: "Agent hat nichts Verlässliches gefunden" };
       return { key: "idle", label: "wartet", preview: item.source ? `Quelle: ${item.source.label}` : "" };

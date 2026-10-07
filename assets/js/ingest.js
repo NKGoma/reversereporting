@@ -68,6 +68,41 @@
     return lines.join("\n").replace(/-\n(?=[a-zäöüß])/g, "").replace(/([^.!?:\n])\n(?=[a-zäöüß])/g, "$1 ").trim();
   }
 
+  /* ---------- Zeichensatz erkennen ---------- */
+  // UTF-8 zuerst; sonst Mac Roman oder Windows-1252 (alte Exporte), je nachdem
+  // welche Variante plausiblere deutsche Zeichen ergibt.
+  function decodeText(buf) {
+    const bytes = new Uint8Array(buf);
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/, "");
+    } catch (e) { /* kein gültiges UTF-8 */ }
+    const score = (t) => (t.match(/[äöüÄÖÜß„“–]/g) || []).length * 2 - (t.match(/[ŠšŸŒœÐ§¶ƒ\u0080-\u009F\uFFFD]/g) || []).length * 3;
+    const cands = ["macintosh", "windows-1252"].map((enc) => {
+      try { return new TextDecoder(enc).decode(bytes); } catch (e) { return ""; }
+    });
+    return score(cands[0]) > score(cands[1]) ? cands[0] : cands[1];
+  }
+
+  /* ---------- Text säubern ---------- */
+  // Bekannte Abbinder und Teaser von BR24 & Co., die nicht zum Artikel gehören
+  const BOILER = [
+    /^das ist die europäische perspektive bei br24\.?$/i,
+    /^\*?\s*"?hier ist bayern"?:? der br24 newsletter/i,
+    /hier geht's zur anmeldung!?$/i,
+    /^(mehr|auch interessant|lesen sie auch|weitere artikel)\b.*$/i,
+  ];
+  function stripBoilerplate(text) {
+    let lines = text.split("\n").map((l) => l.trim());
+    lines = lines.filter((l) => l && !BOILER.some((re) => re.test(l)));
+    // kurze Teaser-Zeilen (Link-Überschriften) am Ende entfernen
+    const isTeaser = (l) => l.split(/\s+/).length < 14 && !/[.!?“"]$/.test(l);
+    while (lines.length > 2 && isTeaser(lines[lines.length - 1])) lines.pop();
+    return lines.join("\n");
+  }
+
+  // zusammengeklebte Sätze ("Bier.Die") wieder trennen
+  const unglue = (t) => t.replace(/([a-zäöüß0-9][.!?])([A-ZÄÖÜ][a-zäöüß])/g, "$1 $2");
+
   function guessTitle(text, fallback) {
     const line = text.split("\n").map((l) => l.trim()).find((l) => l.length > 3);
     if (!line) return fallback;
@@ -82,7 +117,7 @@
   }
 
   function makeArticle(text, name, titleHint, extra) {
-    const clean = text.replace(/\r/g, "").replace(/[ \t]+/g, " ").trim();
+    const clean = stripBoilerplate(unglue(text.replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " "))).trim();
     return {
       id: "a" + Math.random().toString(36).slice(2, 8),
       name: name || "Eingefügter Text",
@@ -97,6 +132,7 @@
   // Eingefügter Text: mehrere Artikel mit "---" trennen
   function fromPaste(text) {
     return text
+      .replace(/\r\n?/g, "\n")
       .split(/^\s*-{3,}\s*$/m)
       .map((t) => t.trim())
       .filter((t) => t.length >= 40)
@@ -109,7 +145,7 @@
     if (lower.endsWith(".docx")) return [makeArticle(await docxToText(await file.arrayBuffer()), name)];
     if (lower.endsWith(".pdf")) return [makeArticle(await pdfToText(await file.arrayBuffer()), name)];
     if (lower.endsWith(".doc")) throw new Error("Altes .doc-Format – bitte als .docx oder .pdf speichern");
-    const text = await file.text();
+    const text = decodeText(await file.arrayBuffer());
     if (/\.html?$/.test(lower) || /^\s*<(!doctype|html)/i.test(text)) {
       const r = htmlToText(text);
       return [makeArticle(r.text, name, r.title)];
@@ -119,5 +155,5 @@
     return parts.length > 1 ? parts.map((p, i) => ({ ...p, name: `${name} (${i + 1})` })) : [makeArticle(text, name)];
   }
 
-  RR.ingest = { readFile, makeArticle, fromPaste };
+  RR.ingest = { readFile, makeArticle, fromPaste, decodeText, stripBoilerplate };
 })();

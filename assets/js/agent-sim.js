@@ -158,8 +158,65 @@
       };
     },
 
-    lookup(item) {
+    // Ausgabe zählen: "190. Oktoberfest" (2025) → 2027 = 192.
+    edition(item, an) {
+      const p = patternOf(item, an);
+      const seen = [];
+      for (const e of p.evidence || []) {
+        const m = e.text.match(/\b(\d{2,3})\.\s*(oktoberfest|wiesn|volksfest|auflage|ausgabe)/i) || e.text.match(/\bdie (\d{2,3})\./i);
+        if (m && e.ay) seen.push({ year: e.ay, n: Number(m[1]), title: e.title, word: m[2] || "Ausgabe" });
+      }
+      if (!seen.length) return handoff(["Suche Zählung im Archiv …", "Keine Zählung gefunden."], "Im Archiv steht nicht, die wievielte Ausgabe es ist.");
+      const uniqY = {};
+      seen.forEach((x) => (uniqY[x.year] = x));
+      const list = Object.values(uniqY).sort((a, b) => a.year - b.year);
+      const last = list[list.length - 1];
+      const next = last.n + (an.targetYear - last.year);
+      const consistent = list.every((x) => x.n - x.year === last.n - last.year);
+      const word = /wiesn/i.test(last.word) ? "Wiesn" : an.type.event || "Ausgabe";
+      return {
+        log: list.map((x) => `Archiv ${x.year}: ${x.n}. ${word}`).concat([`Berechne ${an.targetYear}: ${next}. ${word}`]),
+        result: { kind: "facts", sources: list.length, summary: `${next}. ${word} (${an.targetYear})`, metrics: { edition: next },
+          facts: [
+            ...list.map((x) => ({ label: String(x.year), value: `${x.n}. ${word}`, source: { label: "Archiv: " + x.title } })),
+            { label: String(an.targetYear), value: `${next}. ${word}`, source: { label: consistent ? "berechnet – Zählung im Archiv ist lückenlos" : "berechnet – Achtung: Zählung im Archiv springt, bitte prüfen" } },
+          ] },
+      };
+    },
+
+    // Was war im Vorjahr? Belegsätze aus dem Archiv, nach Jahr sortiert (echte Daten)
+    archive_recap(item, an) {
+      const p = patternOf(item, an);
+      const ev = (p.evidence || []).slice().sort((a, b) => (a.ay || 0) - (b.ay || 0));
+      if (!ev.length) return handoff(["Durchsuche Archiv …", "Keine Vergleichsstellen gefunden."], "Im Archiv gibt es keine Vergleichsstellen.");
+      const cut = (t) => (t.length > 220 ? t.slice(0, 217) + "…" : t);
+      return {
+        log: [`Durchsuche ${an.per.length} Archivartikel …`, `${ev.length} Vergleichsstellen gefunden.`],
+        result: { kind: "facts", sources: ev.length, summary: ((n) => `${ev.length} Stellen aus ${n === 1 ? "einem Jahr" : n + " Jahren"}`)(new Set(ev.map((e) => e.ay)).size),
+          facts: ev.slice(0, 6).map((e) => ({ label: String(e.ay || "?"), value: `„${cut(e.text)}“`, source: { label: "Archiv: " + e.title } })) },
+      };
+    },
+
+    lookup(item, an) {
       const src = item.source ? item.source.label : "offizielle Quellen";
+      const p = an ? patternOf(item, an) : { evidence: [] };
+      const ev = (p.evidence || []).filter((e) => e.ay);
+      if (ev.length) {
+        // jüngste Ausgabe im Archiv als Vorschlag übernehmen – muss bestätigt werden
+        const latest = Math.max(...ev.map((e) => e.ay));
+        const inYear = ev.filter((e) => e.ay === latest);
+        const body = inYear.filter((e) => e.start > 0); // Überschrift nur, wenn sonst nichts da ist
+        const last = (body.length ? body : inYear).slice().sort((a, b) => /\d/.test(b.text) - /\d/.test(a.text)); // konkrete Angaben zuerst
+        const cut = (t, n) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
+        return {
+          log: [`Suche in ${src} …`, `Für ${an.targetYear} noch nichts veröffentlicht (Offline-Modus).`, `Übernehme Angaben aus ${latest} als Vorschlag.`],
+          result: { kind: "facts", carried: true, sources: 1, summary: `Vorschlag aus ${latest}: ${cut(last[0].text, 90)}`,
+            facts: [
+              ...last.slice(0, 3).map((e) => ({ label: `Archiv ${latest}`, value: `„${cut(e.text, 220)}“`, source: { label: "Archiv: " + e.title } })),
+              { label: `Prüfen für ${an.targetYear}`, value: "Gilt das wieder? Bitte bestätigen oder korrigieren.", source: item.source || { label: "offizielle Quelle" } },
+            ] },
+        };
+      }
       return handoff([`Suche in ${src} …`, "Kein maschinenlesbarer Wert gefunden."], `Der Agent konnte das nicht automatisch finden (gesucht: ${src}). Im KI-Modus versucht er es per Websuche.`);
     },
   };

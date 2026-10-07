@@ -95,6 +95,8 @@
           <h2 class="type-name">${esc(t.label)}</h2>
           ${t.event && !t.label.includes(t.event) ? `<p class="type-event">${esc(t.event)}</p>` : ""}
           <p class="muted small">${esc(t.description || "")}</p>
+          ${!ai && an.alternatives && an.alternatives[1] && an.alternatives[1].raw >= an.alternatives[0].raw * 0.5 && an.alternatives[1].id !== t.id
+            ? `<p class="small type-alt">Auch möglich: <button type="button" class="link-btn" data-act="force-alt" data-id="${an.alternatives[1].id}">${esc(an.alternatives[1].label)}</button></p>` : ""}
           ${ai ? "" : `<label class="type-switch"><span class="small muted">Falsch erkannt?</span>
             <select data-act="force-type" aria-label="Story-Typ ändern">${opts.map(([id, l]) => `<option value="${id}" ${id === t.id ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`}
         </div>
@@ -109,8 +111,8 @@
 
         <aside class="card patterns">
           <div class="section-head"><h2>Bausteine</h2>${focus ? `<button class="btn btn-ghost btn-sm" data-act="focus" data-id="" type="button">Alle zeigen</button>` : ""}</div>
-          <ol class="pat-list">${an.patterns.map((p, i) => `
-            <li class="pat ${p.recurring ? "is-rec" : ""} ${focus === p.id ? "is-focus" : ""}">
+          <ol class="pat-list">${an.patterns.map((p, i) => `${p.discovered && !(an.patterns[i - 1] || {}).discovered ? `<li class="pat-group">Weitere wiederkehrende Elemente aus deinen Artikeln</li>` : ""}
+            <li class="pat ${p.recurring || p.suggested ? "is-rec" : ""} ${focus === p.id ? "is-focus" : ""}">
               <button type="button" class="pat-main" data-act="focus" data-id="${esc(p.id)}" aria-pressed="${focus === p.id}">
                 <span class="pat-no" style="--c:var(--p${i % PCOLORS})">${i + 1}</span>
                 <span class="pat-label">${esc(p.label)}</span>
@@ -166,6 +168,7 @@
     },
   });
 
+  RR.act["force-alt"] = (el) => RR.app.runAnalysis(el.dataset.id);
   RR.onChange.include = (el) => { S().include[el.dataset.id] = el.checked; A().save(); };
   RR.onChange["force-type"] = (el) => RR.app.runAnalysis(el.value);
 })();

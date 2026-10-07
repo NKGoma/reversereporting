@@ -143,7 +143,7 @@
       s.analysis = RR.analyze(s.articles, force ? { force } : {});
     }
     s.include = {};
-    s.analysis.patterns.forEach((p) => (s.include[p.id] = p.recurring));
+    s.analysis.patterns.forEach((p) => (s.include[p.id] = p.recurring || !!p.suggested));
     s.checklist = [];
     s.results = {};
     s.ui = { article: 0, focus: null };
