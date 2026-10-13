@@ -67,14 +67,21 @@
         const Yo = answerOf(yoy);
         const d = Yo ? Yo.r.result.metrics.deltaPct : null;
         lead = [{ t: `Die Bierpreise steigen erneut: Beim ${ev} ${Y} kostet die Maß zwischen ${F().eur(min.curr)} und ${F().eur(max.curr)}.` },
-          Yo ? { t: ` Im Schnitt sind das ${Math.abs(d).toFixed(1).replace(".", ",")} Prozent ${d >= 0 ? "mehr" : "weniger"} als ${Y - 1}.` } : gap(yoy, "Veränderung zum Vorjahr")];
+          !Yo ? gap(yoy, "Veränderung zum Vorjahr")
+            : Yo.r.result.official
+              ? { t: ` Zum Vergleich: ${Yo.r.result.metrics.currYear} lag der Durchschnittspreis laut Stadt München bei ${F().eur(Yo.r.result.metrics.curr)}, ${Math.abs(d).toFixed(1).replace(".", ",")} Prozent ${d >= 0 ? "mehr" : "weniger"} als ${Yo.r.result.metrics.prevYear}.` }
+              : { t: ` Im Schnitt sind das ${Math.abs(d).toFixed(1).replace(".", ",")} Prozent ${d >= 0 ? "mehr" : "weniger"} als ${Y - 1}.` }];
         paras.push([{ t: `Am teuersten ist es im Zelt „${max.tent}“ (${F().eur(max.curr)}), am günstigsten im Zelt „${min.tent}“ (${F().eur(min.curr)}).` }]);
       } else {
         headline = [{ t: `${ev} ${Y}: ` }, gap(tents, "Maßpreis")];
         lead = [gap(tents, "Preise aller Zelte")];
       }
       const H = answerOf(hist);
-      if (H && H.r.result.series.length > 1) {
+      if (H && H.r.result.official) {
+        const city = (an.datasets || []).map((x) => RR.facts.get(x)).find((x) => x && x.builtin);
+        const s0 = city && RR.facts.series(city, "bier_preis").find((p) => p.year <= Y - 10 && (Y - 10 - p.year) < 3) || (city && RR.facts.series(city, "bier_preis")[0]);
+        if (s0) paras.push([{ t: `Vor gut zehn Jahren, ${s0.year}, kostete die Maß im Schnitt ${F().eur(s0.value)} (laut Stadt München).` }]);
+      } else if (H && H.r.result.series && H.r.result.series.length > 1) {
         const first = H.r.result.series[0];
         paras.push([{ t: `Zum Vergleich: ${first.year} kostete die Maß höchstens ${F().eur(first.max)}.` }]);
       }
@@ -90,7 +97,8 @@
       if (used.has(i.id)) continue;
       const a = answerOf(i);
       if (!a) { paras.push([carriedGap(i)]); continue; }
-      if (a.kind === "agent") paras.push([{ t: `${i.title.replace(new RegExp(`\\s*\\(?${Y}\\)?$`), "")}: ${a.r.result.summary}.` }]);
+      if (a.kind === "agent" && a.r.result.official) paras.push([{ t: `${i.title.replace(new RegExp(`\\s*\\(?${Y}\\)?$`), "")}: ${a.r.result.summary} (laut Stadt München).` }]);
+      else if (a.kind === "agent") paras.push([{ t: `${i.title.replace(new RegExp(`\\s*\\(?${Y}\\)?$`), "")}: ${a.r.result.summary}.` }]);
       else if (a.kind === "quote") paras.push([{ t: `„${a.text.replace(/[„“"]/g, "")}“ (O-Ton aus Telefonat, vor Veröffentlichung autorisieren)` }]);
       else if (a.kind === "note") paras.push([{ t: a.text }]);
       else paras.push([{ t: `Laut ${a.org}: ${a.text}` }]);

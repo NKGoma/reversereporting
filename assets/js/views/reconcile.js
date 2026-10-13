@@ -24,6 +24,7 @@
         </div>
         <div class="tally">${Object.entries(LEVEL).map(([k, l]) => `<div class="tally-item lvl-${k}">${icon(l.icon)}<strong>${by(k).length}</strong><span>${l.label}</span></div>`).join("")}</div>
       </header>
+      ${factTable(RR.factCheck(s))}
       <div class="flag-cols">${Object.entries(LEVEL).map(([k, l]) => `
         <section class="flag-col lvl-${k}">
           <h2>${icon(l.icon)} ${l.label}</h2>
@@ -41,6 +42,23 @@
       </div>
     </section>`;
   };
+
+  function factTable(rows) {
+    const an = S().analysis;
+    if (!(an.datasets || []).length) return "";
+    const warn = rows.filter((r) => r.level === "warn"), ok = rows.filter((r) => r.level === "ok");
+    const tr = (r) => `<tr class="fc-${r.level}"><td class="num">${r.year}</td><td>${esc(r.topic)}</td><td>„${esc(r.claim)}“<small>${esc(r.article)}</small></td><td class="num">${esc(r.official)}</td><td><span class="fc-note">${icon(r.level === "ok" ? "check" : "alert")}${esc(r.note)}</span></td></tr>`;
+    return `<section class="card factcheck">
+      <div class="section-head"><div><p class="eyebrow">Faktencheck</p><h2>Archiv gegen amtliche Daten</h2></div>
+        <span class="fc-tally"><span class="lvl-warn">${warn.length} abweichend</span><span class="lvl-ok">${ok.length} bestätigt</span></span></div>
+      <p class="muted small">Zahlen aus deinen Artikeln, verglichen mit den Jahreswerten der Stadt München (Open Data, dl-by-de/2.0).</p>
+      ${rows.length ? `<div class="table-wrap"><table class="data">
+        <thead><tr><th class="num">Jahr</th><th>Thema</th><th>Artikel sagt</th><th class="num">Amtlich</th><th>Ergebnis</th></tr></thead>
+        <tbody>${warn.map(tr).join("")}${ok.slice(0, warn.length ? 4 : 6).map(tr).join("")}</tbody></table></div>
+        ${ok.length > (warn.length ? 4 : 6) ? `<details class="fc-more"><summary>Alle ${ok.length} Bestätigungen zeigen</summary><div class="table-wrap"><table class="data"><tbody>${ok.map(tr).join("")}</tbody></table></div></details>` : ""}`
+      : `<p class="empty-note">Keine prüfbaren Zahlen für Jahre, zu denen es amtliche Daten gibt.</p>`}
+    </section>`;
+  }
 
   RR.act["flag-open"] = (el) => {
     RR.app.go("research");

@@ -134,10 +134,21 @@ Erstelle 6–12 Punkte. target_year ist das Jahr der nächsten Ausgabe. Antworte
     return score >= 2 ? best : null;
   }
 
+  // amtliche Zahlen als bekannte Fakten für Claude (letzte fünf Jahrgänge)
+  function factsText(an) {
+    const list = (an.datasets || []).map((id) => RR.facts && RR.facts.get(id)).filter(Boolean);
+    if (!list.length) return "";
+    return list.map((d) => {
+      const rows = d.rows.slice(-5).map((r) => `${r.jahr}: ` + Object.keys(d.columns).filter((c) => r[c] != null).map((c) => `${d.columns[c].label} ${RR.facts.fmt(d, c, r[c])}`).join(", "));
+      return `<amtliche_daten quelle="${d.publisher} – ${d.title}${d.license ? ", " + d.license : ""}">\n${rows.join("\n")}\n</amtliche_daten>`;
+    }).join("\n");
+  }
+
   async function analyze(articles) {
     const offline = RR.analyze(articles);
     const { Anthropic, c } = await client();
-    const content = articles.map((a, i) => `<artikel nummer="${i + 1}" jahr="${a.year || "?"}" titel="${a.title.replace(/"/g, "'")}">\n${a.text}\n</artikel>`).join("\n\n");
+    const facts = factsText(offline);
+    const content = (facts ? facts + "\n\n" : "") + articles.map((a, i) => `<artikel nummer="${i + 1}" jahr="${a.year || "?"}" titel="${a.title.replace(/"/g, "'")}">\n${a.text}\n</artikel>`).join("\n\n");
     let resp;
     try {
       resp = await c.beta.messages.create(base({
@@ -210,7 +221,8 @@ Wenn du keine verlässliche Quelle findest oder die Werte für das Zieljahr noch
     const { Anthropic, c } = await client();
     const pat = an.patterns.find((p) => p.id === item.patternId);
     const archive = pat && pat.values.length ? pat.values.map((v) => `${v.year || "?"}: ${v.raw}`).join("; ") : "keine";
-    const messages = [{ role: "user", content: `Geschichte: ${an.type.label} (${an.type.event || ""}). Zieljahr: ${an.targetYear}.\nAufgabe: ${item.title}\nQuellenhinweis: ${item.source ? item.source.label : "-"}\nArchivwerte aus früheren Artikeln: ${archive}` }];
+    const facts = factsText(an);
+    const messages = [{ role: "user", content: `${facts ? facts + "\nNutze diese amtlichen Zahlen, wenn sie die Aufgabe beantworten, und nenne sie als Quelle.\n" : ""}Geschichte: ${an.type.label} (${an.type.event || ""}). Zieljahr: ${an.targetYear}.\nAufgabe: ${item.title}\nQuellenhinweis: ${item.source ? item.source.label : "-"}\nArchivwerte aus früheren Artikeln: ${archive}` }];
     const tools = [{ type: "web_search_20260209", name: "web_search", max_uses: 5 }];
     let withFormat = true;
     let resp;

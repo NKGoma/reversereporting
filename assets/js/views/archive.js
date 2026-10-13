@@ -35,35 +35,72 @@
     return lines.map((l, i) => (i === 0 ? `<h3 class="reader-title">${l}</h3>` : `<p>${l}</p>`)).join("");
   }
 
-  function chartHtml(tl) {
+  // Diagramm: Archivwerte (Punkte, Spanne) und – falls verknüpft – die amtliche Reihe (Linie)
+  function chartHtml(tl, off) {
     const pts = tl.points.filter((p) => isFinite(p.max));
-    if (pts.length < 2) return "";
-    const W = 640, H = 230, L = 52, R = 18, T = 26, B = 36;
-    const y0 = Math.min(...pts.map((p) => p.min)), y1 = Math.max(...pts.map((p) => p.max));
-    const pad = (y1 - y0) * 0.15 || y1 * 0.1 || 1;
+    if (pts.length < 2 && !off) return "";
+    const offAll = off ? off.series : [];
+    const yearsA = pts.map((p) => p.year);
+    const lastOff = offAll.length ? offAll[offAll.length - 1].year : 0;
+    const x0 = Math.min(...yearsA, lastOff ? lastOff - 15 : Infinity);
+    const x1 = Math.max(...yearsA, lastOff || -Infinity);
+    const offPts = offAll.filter((p) => p.year >= x0 && p.year <= x1);
+    const vals = [...pts.flatMap((p) => [p.min, p.max]), ...offPts.map((p) => p.value)];
+    const W = 680, H = 250, L = 56, R = 22, T = 26, B = 40;
+    const y0 = Math.min(...vals), y1 = Math.max(...vals);
+    const pad = (y1 - y0) * 0.12 || y1 * 0.1 || 1;
     const lo = Math.max(0, y0 - pad), hi = y1 + pad;
-    const x0 = pts[0].year, x1 = pts[pts.length - 1].year;
     const X = (y) => L + ((y - x0) / Math.max(1, x1 - x0)) * (W - L - R);
     const Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
-    const fmt = (v) => (tl.unit === "€" ? RR.fmt.eur(v) : RR.fmt.withUnit(v, tl.unit));
+    const unit = off ? off.unit : tl.unit;
+    const fmt = (v) => (unit === "€" ? RR.fmt.eur(v) : RR.fmt.withUnit(v, unit));
     const raw = (hi - lo) / 3;
     const mag = 10 ** Math.floor(Math.log10(raw));
     const stepv = [1, 2, 2.5, 5, 10].map((k) => k * mag).find((k) => k >= raw);
     const ticks = [];
     for (let v = Math.ceil(lo / stepv) * stepv; v <= hi; v += stepv) ticks.push(v);
-    const line = pts.map((p, i) => `${i ? "L" : "M"}${X(p.year).toFixed(1)},${Y(p.max).toFixed(1)}`).join(" ");
+    // Jahresbeschriftung: Archivjahre plus jedes fünfte Jahr, ohne Überlappung
+    const yl = [...new Set([...yearsA, ...offPts.map((p) => p.year).filter((y) => y % 5 === 0), x1])].sort((a, b) => a - b);
+    const xl = [];
+    yl.forEach((y) => { if (!xl.length || X(y) - X(xl[xl.length - 1]) > 30) xl.push(y); });
+    const path = (arr, k) => arr.map((p, i) => `${i ? "L" : "M"}${X(p.year).toFixed(1)},${Y(p[k]).toFixed(1)}`).join(" ");
+    const offLast = offPts[offPts.length - 1];
     return `<figure class="card chart">
-      <figcaption><h2>${esc(tl.label)} im Archiv</h2><p class="muted small">Werte, die in den Artikeln einem Jahr zugeordnet wurden (Spanne = günstigster bis höchster Wert).</p></figcaption>
-      <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(tl.label)} nach Jahren">
+      <figcaption><h2>${esc(off ? off.label : tl.label + " im Archiv")}</h2>
+        <p class="muted small">${off ? `Linie: amtlicher Durchschnitt (${esc(off.source)}). ` : ""}${pts.length ? "Punkte: Werte aus den Artikeln (Spanne = günstigster bis höchster Wert)." : ""}</p></figcaption>
+      <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(off ? off.label : tl.label)} nach Jahren">
         ${ticks.map((t) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(t)}" y2="${Y(t)}"/><text class="tick" x="${L - 8}" y="${Y(t) + 4}" text-anchor="end">${esc(fmt(t))}</text>`).join("")}
-        <path class="trend" d="${line}"/>
+        ${offPts.length > 1 ? `<path class="official" d="${path(offPts, "value")}"/>${offPts.map((p) => `<circle class="odot" cx="${X(p.year)}" cy="${Y(p.value)}" r="2.6"><title>${p.year}: Ø ${esc(fmt(p.value))}</title></circle>`).join("")}
+          <text class="oval" x="${X(offLast.year) + 6}" y="${Y(offLast.value) + 16}" text-anchor="end">Ø ${esc(fmt(offLast.value))}</text>` : ""}
+        ${pts.length > 1 ? `<path class="trend" d="${path(pts, "max")}"/>` : ""}
         ${pts.map((p, i) => `
           ${p.min !== p.max ? `<line class="range" x1="${X(p.year)}" x2="${X(p.year)}" y1="${Y(p.min)}" y2="${Y(p.max)}"/>` : ""}
           <circle class="dot ${i === pts.length - 1 ? "is-last" : ""}" cx="${X(p.year)}" cy="${Y(p.max)}" r="${i === pts.length - 1 ? 5.5 : 4}"/>
-          <text class="val" x="${X(p.year)}" y="${Y(p.max) - 11}" text-anchor="middle">${esc(fmt(p.max))}</text>
-          <text class="tick" x="${X(p.year)}" y="${H - 12}" text-anchor="middle">${p.year}</text>`).join("")}
+          <text class="val" x="${X(p.year)}" y="${Y(p.max) - 11}" text-anchor="middle">${esc(fmt(p.max))}</text>`).join("")}
+        ${xl.map((y) => `<text class="tick" x="${X(y)}" y="${H - 14}" text-anchor="middle">${y}</text>`).join("")}
       </svg></div>
+      ${off ? `<div class="legend"><span class="lg-off"></span>Ø laut ${esc(off.publisher)}${pts.length ? `<span class="lg-arch"></span>Höchstwerte aus den Artikeln` : ""}</div>` : ""}
     </figure>`;
+  }
+
+  // Band mit den verknüpften Datentabellen
+  function factsBand(an) {
+    const list = (an.datasets || []).map((id) => RR.facts && RR.facts.get(id)).filter(Boolean);
+    if (!list.length) return "";
+    return `<section class="facts-band">
+      <span class="fb-ic">${icon("archive")}</span>
+      <div><p class="eyebrow">Faktenbasis verknüpft</p>
+        ${list.map((d) => `<p class="fb-line"><strong>${esc(d.publisher)}</strong> · ${esc(d.title)} · ${d.rows.length} Jahrgänge${d.license ? ` · Lizenz ${esc(d.license)}` : ""} · ${esc(d.asOf)}${d.url ? ` · <a href="${esc(d.url)}" target="_blank" rel="noopener">Quelle${icon("link", "ic-xs")}</a>` : ""}</p>`).join("")}
+        <p class="muted small">Der Agent nutzt diese Zahlen als echte Quelle und prüft damit die Angaben in deinen Artikeln.</p></div>
+    </section>`;
+  }
+
+  function officialSeries(an) {
+    const city = (an.datasets || []).map((id) => RR.facts && RR.facts.get(id)).find((d) => d && d.builtin);
+    if (!city) return null;
+    const isPrice = an.type.id === "volksfest-bierpreis" || an.timeline.label === "Maßpreis" || an.timeline.points.length < 2;
+    if (!isPrice) return null;
+    return { label: "Maßpreis: Archiv und amtliche Daten", unit: "€", series: RR.facts.series(city, "bier_preis"), source: RR.facts.source(city).label, publisher: city.short };
   }
 
   RR.views.archive = function () {
@@ -128,7 +165,8 @@
         </aside>
       </div>
 
-      ${chartHtml(an.timeline)}
+      ${factsBand(an)}
+      ${chartHtml(an.timeline, officialSeries(an))}
 
       <div class="actions">
         <button class="btn btn-ghost" data-act="home" type="button">Zurück</button>

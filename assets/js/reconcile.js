@@ -87,5 +87,69 @@
     return out.sort((a, b) => order[a.level] - order[b.level]);
   }
 
+  /* ---------- Faktencheck: Archivartikel gegen amtliche Daten ---------- */
+  const WORDS = { zwei: 2, drei: 3, vier: 4, fünf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10 };
+  const BEER = /maß|bier|liter/i;
+  const NOT_BEER = /wasser|spezi|limo|hendl|alkoholfrei|fahrticket|eintritt/i;
+
+  function factCheck(state) {
+    const an = state.analysis;
+    if (!an || !RR.facts) return [];
+    const city = (an.datasets || []).map((id) => RR.facts.get(id)).find((d) => d && d.builtin);
+    if (!city || !state.articles.length) return [];
+    const out = [];
+    const tol = (a, b, p) => Math.abs(a - b) / b <= p;
+    for (const a of state.articles) {
+      for (const s of RR.text.sentences(a.text)) {
+        const t = s.text;
+        const forecast = /erwart|rechnet mit|prognos|soll(en)?\b/i.test(t);
+        // Besucherzahlen in Millionen (auch "sechs Millionen")
+        const vis = [];
+        for (const n of RR.text.numbers(t)) if (n.unit === "Mio." && /besucher|gäste/i.test(n.noun + " " + t)) vis.push({ value: n.value, raw: n.raw, index: n.index });
+        for (const m of t.matchAll(/\b(zwei|drei|vier|fünf|sechs|sieben|acht|neun|zehn) millionen/gi)) if (/besucher|gäste/i.test(t)) vis.push({ value: WORDS[m[1].toLowerCase()], raw: m[0], index: m.index, words: true });
+        for (const v of vis) {
+          const y = RR.text.yearAt(t, v.index, a.year);
+          const off = RR.facts.value(city, "besucher_gesamt", y);
+          if (off == null) continue;
+          const pre = t.slice(Math.max(0, v.index - 18), v.index).toLowerCase();
+          const atLeast = /mehr als|über|gut/.test(pre), atMost = /weniger als|knapp|unter/.test(pre);
+          const ok = atLeast ? off >= v.value : atMost ? off <= v.value * 1.02 : tol(v.value, off, 0.06);
+          out.push({ level: ok ? "ok" : "warn", year: y, topic: "Besucher", article: a.title, claim: `${atLeast ? "mehr als " : atMost ? "knapp " : ""}${v.raw}${forecast ? " (Prognose)" : ""}`,
+            official: RR.facts.fmt(city, "besucher_gesamt", off), note: ok ? (forecast ? "Prognose hat sich bestätigt" : "deckt sich") : (forecast ? "Prognose lag daneben" : "weicht ab"), source: RR.facts.source(city, y) });
+        }
+        // Maßpreise: genannter Preis gegen amtlichen Durchschnitt
+        if (BEER.test(t) && !NOT_BEER.test(t)) {
+          for (const n of RR.text.numbers(t)) {
+            if (!n.money || n.value < 3 || n.value > 30) continue;
+            const y = RR.text.yearAt(t, n.index, a.year);
+            const off = RR.facts.value(city, "bier_preis", y);
+            if (off == null) continue;
+            const pre = t.slice(Math.max(0, n.index - 30), n.index).toLowerCase();
+            const isMax = /bis zu|höchst|teuerst/.test(pre) || /\bund\s*$/.test(pre); // "zwischen 14,50 und 15,80"
+            const isMin = /ab |günstigst|zwischen/.test(pre);
+            const isAvg = /schnitt|durchschnitt/.test(pre + t.toLowerCase());
+            let ok, note;
+            if (isAvg) { ok = tol(n.value, off, 0.03); note = ok ? "Durchschnitt deckt sich" : "Durchschnitt weicht ab"; }
+            else if (isMax) { ok = off <= n.value; note = ok ? "plausibel: Ø liegt unter dem Höchstpreis" : "unplausibel: Ø liegt über dem genannten Höchstpreis"; }
+            else if (isMin) { ok = off >= n.value; note = ok ? "plausibel: Ø liegt über dem Mindestpreis" : "unplausibel: Ø liegt unter dem Mindestpreis"; }
+            else { ok = tol(n.value, off, 0.08); note = ok ? "plausibel: nahe am Ø (Einzelpreis)" : "weicht stark vom Ø ab – prüfen"; }
+            out.push({ level: ok ? "ok" : "warn", year: y, topic: "Maßpreis", article: a.title, claim: `${isMax ? "bis zu " : ""}${n.raw}`, official: `Ø ${RR.facts.fmt(city, "bier_preis", off)}`, note, source: RR.facts.source(city, y) });
+          }
+        }
+        // Dauer in Tagen
+        const d = t.match(/(\d{2}) tage/i);
+        if (d && /wiesn|oktoberfest|fest/i.test(t)) {
+          const off = RR.facts.value(city, "dauer", a.year);
+          if (off != null) out.push({ level: Number(d[1]) === off ? "ok" : "warn", year: a.year, topic: "Dauer", article: a.title, claim: d[0], official: `${off} Tage`, note: Number(d[1]) === off ? "deckt sich" : "weicht ab", source: RR.facts.source(city, a.year) });
+        }
+      }
+    }
+    // doppelte Aussagen zusammenfassen
+    const seen = new Set();
+    return out.filter((f) => { const k = f.year + f.topic + f.claim; if (seen.has(k)) return false; seen.add(k); return true; })
+      .sort((x, y) => (x.level === y.level ? x.year - y.year : x.level === "warn" ? -1 : 1));
+  }
+
   RR.reconcile = reconcile;
+  RR.factCheck = factCheck;
 })();

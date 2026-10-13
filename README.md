@@ -22,6 +22,16 @@ Archiv → Blueprint → Recherche → Abgleich → Story → (Blueprint fürs n
 
 Emails and phone calls are **always simulated**. Nothing leaves the browser except the optional API requests.
 
+## Fact base (real data)
+The agent uses **real data tables** as its source wherever they answer a question. These results carry a source badge and link instead of "Demo".
+
+- **Bundled:** City of Munich, open data, *Oktoberfest 1985–2025* (`assets/data/oktoberfest-muenchen-1985-2025.csv`): duration, visitors (total and per day), average Maß price, beer consumption, chicken price, chicken consumption.
+  Source: [Landeshauptstadt München – Open-Data-Portal](https://opendata.muenchen.de/dataset/oktoberfest), license [Datenlizenz Deutschland – Namensnennung – Version 2.0](https://www.govdata.de/dl-de/by-2-0).
+  On GitHub Pages the app also tries the city's API for newer years (best effort; if that fails, the bundled copy is used).
+- **What it enables:** the official year-on-year change and price series since 1985, last year's totals, chicken price, and records. There is also a **fact check**: numbers in the uploaded archive articles are compared with the official figures (visitors, prices, duration). Matches are confirmed, deviations flagged.
+- **Your own tables** (e.g. from the BR data team): start screen → "Datenquellen" → "Tabelle hinzufügen (CSV)". A `jahr` (or `year`) column is required; every numeric column becomes a series the agent can use.
+- **Note on BR24:** br.de blocks automated access (including Anthropic's web search), so BR articles are added by upload.
+
 ## Demo
 "Demo starten" on the start screen loads three **fictional** sample articles (Wiesn beer prices 2023–2025) and runs the whole flow.
 

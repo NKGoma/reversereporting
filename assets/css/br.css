@@ -287,7 +287,7 @@ mark.ev { background: var(--cb); color: inherit; border-bottom: 2px solid var(--
 .chart { margin: 18px 0 0; }
 .chart figcaption h2 { margin: 0 0 2px; }
 .chart-wrap { overflow-x: auto; }
-.chart svg { display: block; width: 100%; min-width: 480px; height: auto; max-height: 280px; }
+.chart svg { display: block; width: 100%; min-width: 480px; height: auto; max-height: 340px; }
 .chart .grid { stroke: var(--line); stroke-width: 1; }
 .chart .tick { fill: var(--muted); font: 500 11px var(--font-body); font-variant-numeric: tabular-nums; }
 .chart .val { fill: var(--text); font: 700 11.5px var(--font-body); font-variant-numeric: tabular-nums; }
@@ -490,3 +490,30 @@ table.data tr:last-child td { border-bottom: 0; }
 .pat-group { margin: 10px 0 2px; padding: 8px 8px 0; border-top: 1px solid var(--line); font-size: 0.74rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); list-style: none; }
 .type-alt { margin: 8px 0 0; color: var(--muted); }
 .link-btn { border: 0; background: none; padding: 0; color: var(--blue); font: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+
+/* Faktenbasis */
+.facts-band { display: flex; gap: 14px; align-items: flex-start; margin-top: 18px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: var(--radius); }
+.facts-band .eyebrow { margin-bottom: 2px; }
+.fb-ic { display: grid; place-items: center; width: 36px; height: 36px; flex: none; border-radius: 9px; background: var(--surface-3); color: var(--blue); }
+.fb-line { margin: 0 0 2px; font-size: 0.92rem; }
+.facts-band .muted { margin: 4px 0 0; }
+.chart .official { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 5 4; }
+.chart .odot { fill: var(--muted); }
+.chart .oval { fill: var(--muted); font: 600 11px var(--font-body); }
+.legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; margin-top: 8px; font-size: 0.82rem; color: var(--muted); }
+.legend span { display: inline-block; width: 22px; height: 0; margin-right: -10px; vertical-align: middle; }
+.lg-off { border-top: 2px dashed var(--muted); }
+.lg-arch { border-top: 3px solid var(--blue); }
+.badge-official { background: var(--surface-3); color: var(--blue); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.factcheck { margin-bottom: 18px; }
+.factcheck .section-head { align-items: flex-end; flex-wrap: wrap; }
+.fc-tally { display: flex; gap: 8px; }
+.fc-tally span { padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 0.82rem; background: var(--lbg); color: var(--lc); }
+.factcheck td small { display: block; color: var(--muted); font-size: 0.74rem; }
+.fc-note { display: inline-flex; align-items: flex-start; gap: 5px; font-weight: 600; }
+.fc-note .ic { width: 15px; height: 15px; margin-top: 2px; }
+tr.fc-ok .fc-note { color: var(--ok); }
+tr.fc-warn td { background: var(--warn-bg); }
+tr.fc-warn .fc-note { color: var(--warn); }
+.fc-more { margin-top: 10px; }
+.fc-more summary { cursor: pointer; color: var(--blue); font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; }

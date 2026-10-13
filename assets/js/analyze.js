@@ -427,9 +427,25 @@
       : { id: "generic", label: `Wiederkehrend: ${topic}`, short: topic, event: topic, score: top ? top.score : 0, matched: [], fallback: true,
           description: "Kein bekannter Story-Typ – der Blueprint wurde aus wiederkehrenden Kennzahlen, Institutionen, Stimmen und Erzählmustern gebaut." };
 
+    // Faktenbasis: passende amtliche/eigene Tabellen und daraus abgeleitete Standard-Elemente
+    const datasets = RR.facts ? RR.facts.forEvent(type.event, articles.map((a) => a.text).join(" ")) : [];
+    const city = datasets.find((d) => d.builtin);
+    if (city) {
+      const ly = RR.facts.latest(city, "besucher_gesamt").year;
+      const fy = city.rows[0].jahr;
+      const add = (id, label, title, action, why) =>
+        patterns.push({ id, label, hits: 0, recurring: false, suggested: true, official: true, evidence: [], values: [], unit: "", item: { title, category: "agent", action, why } });
+      if (bp && (bp.id === "volksfest-bierpreis" || bp.id === "festauftakt"))
+        add("f_price", "Ø Maßpreis laut Stadt", `Ø Maßpreis ${ly} laut Stadt München`, "city_price", `Die Stadt veröffentlicht den Durchschnittspreis jedes Jahr (seit ${fy}).`);
+      add("f_balance", "Bilanz laut Stadt", `Bilanz ${ly}: Besucher, Bier, Hendl`, "city_balance", `Amtliche Jahreszahlen der Stadt München liegen bis ${ly} vor.`);
+      add("f_hendl", "Hendlpreis laut Stadt", `Hendlpreis ${ly} im Vergleich`, "city_hendl", "Der Hendlpreis ist ein beliebter Vergleichswert zum Bier.");
+      add("f_records", "Rekorde seit " + fy, `Rekorde und Tiefstwerte seit ${fy}`, "city_records", "Einordnung über vier Jahrzehnte – aus amtlichen Daten berechnet.");
+    }
+
     return {
       engine: "offline",
       type,
+      datasets: datasets.map((d) => d.id),
       alternatives: ranked.slice(0, 3).map((r) => ({ id: r.bp.id, label: r.bp.label, score: r.score, raw: r.raw })),
       per: per.map(({ text, sents, ...rest }) => rest),
       patterns,
@@ -442,7 +458,7 @@
   }
 
   RR.analyze = analyze;
-  RR.text = { sentences, numbers, unitLabel };
+  RR.text = { sentences, numbers, unitLabel, yearAt, sentenceYear };
   RR.archiveValues = archiveValues;
   RR.getBlueprint = (id) => RR.BLUEPRINTS.find((b) => b.id === id) || null;
 })();

@@ -71,6 +71,25 @@
         </article>
       </div>
 
+      <section class="library datasets">
+        <div class="section-head">
+          <h2>Datenquellen</h2>
+          <label class="btn btn-ghost btn-sm">${icon("upload")} Tabelle hinzufügen (CSV)<input type="file" accept=".csv,text/csv" data-act="ds-upload" hidden></label>
+        </div>
+        <div class="lib-grid">${RR.facts.all().map((d) => `
+          <article class="lib-card ds-card">
+            <p class="eyebrow">${d.builtin ? "Amtlich · mitgeliefert" : "Eigene Tabelle"}${d.live ? " · live" : ""}</p>
+            <h3>${esc(d.title)}</h3>
+            <p class="small">${esc(d.publisher)} · ${d.rows.length} Jahrgänge (${d.rows[0].jahr}–${d.rows[d.rows.length - 1].jahr})${d.license ? ` · ${esc(d.license)}` : ""}</p>
+            <p class="muted small">${Object.values(d.columns).map((c) => esc(c.label)).join(" · ")}</p>
+            <div class="lib-actions">
+              ${d.url ? `<a class="btn btn-ghost btn-sm" href="${esc(d.url)}" target="_blank" rel="noopener">Quelle${icon("link", "ic-xs")}</a>` : ""}
+              ${d.custom ? `<button class="btn btn-ghost btn-sm" data-act="ds-remove" data-id="${d.id}" type="button">${icon("trash")}<span>Entfernen</span></button>` : ""}
+            </div>
+          </article>`).join("")}</div>
+        <p class="muted small">Tabellen brauchen eine Spalte „jahr“. Der Agent nutzt passende Spalten als echte Quelle (z. B. Daten des BR-Datenteams).</p>
+      </section>
+
       <section class="library">
         <div class="section-head">
           <h2>Gespeicherte Blueprints</h2>
@@ -214,6 +233,21 @@
       A().render();
     },
   });
+
+  RR.onChange["ds-upload"] = async (el) => {
+    const f = el.files[0];
+    if (!f) return;
+    try {
+      const text = RR.ingest.decodeText(await f.arrayBuffer());
+      const { ds, saved } = RR.facts.addUpload(f.name.replace(/\.csv$/i, ""), text);
+      toast(`Tabelle „${ds.title}“ mit ${ds.rows.length} Jahrgängen und ${Object.keys(ds.columns).length} Spalten hinzugefügt${saved ? "" : " (nur für diese Sitzung)"}.`);
+      A().render();
+    } catch (err) {
+      toast(`Tabelle nicht lesbar: ${err.message}`, "warn");
+    }
+    el.value = "";
+  };
+  RR.act["ds-remove"] = (el) => { RR.facts.remove(el.dataset.id); A().render(); };
 
   RR.onChange["lib-import"] = async (el) => {
     const f = el.files[0];

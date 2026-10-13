@@ -302,4 +302,6 @@
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);
   else setTimeout(render, 0);
+  // amtliche Daten im Hintergrund aktualisieren; bei Erfolg neu zeichnen
+  if (RR.facts) RR.facts.refresh().then((ok) => { if (ok) render(); });
 })();

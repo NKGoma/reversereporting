@@ -30,6 +30,7 @@
   function badge(item) {
     const r = res(item.id);
     if (r.result && r.result.ai) return `<span class="badge badge-ai">${icon("spark")}KI</span>`;
+    if (r.result && r.result.official) return `<span class="badge badge-official">${esc(r.result.badge || "Stadt München")}</span>`;
     if (r.result && r.result.demo) return `<span class="badge badge-demo">Demo</span>`;
     return "";
   }
@@ -137,6 +138,16 @@
       <button class="btn btn-ghost" data-act="confirm-no" data-id="${id}" type="button">Abbrechen</button></div></div>`;
   }
 
+  // Für Anfragen: passende amtliche Vergleichswerte (z. B. Besucher Vorjahr) mitliefern
+  function cityBackground(item, an) {
+    const city = (an.datasets || []).map((x) => RR.facts && RR.facts.get(x)).find((d) => d && d.builtin);
+    if (!city) return "";
+    const cols = Object.keys(city.columns).filter((c) => city.columns[c].match.test(item.title));
+    if (!cols.length) return "";
+    const rows = cols.map((c) => { const l = RR.facts.latest(city, c); return { label: `${city.columns[c].label} ${l.year}`, value: RR.facts.fmt(city, c, l.value), source: RR.facts.source(city, l.year) }; });
+    return `<ul class="facts">${rows.map((f) => `<li><span class="f-l">${esc(f.label)}</span><span class="f-v">${esc(f.value)}</span><span class="f-s">${src(f.source)}</span></li>`).join("")}</ul>`;
+  }
+
   RR.drawerItem = function (id) {
     const item = find(id);
     if (!item) return "";
@@ -150,13 +161,15 @@
     if (item.category === "agent") {
       if (r.log.length) body += `<p class="eyebrow">Protokoll des Agenten</p><ol class="log">${r.log.map((l) => `<li>${esc(l)}</li>`).join("")}</ol>`;
       else body += `<p class="muted">Der Agent hat diesen Punkt noch nicht bearbeitet.</p>`;
-      if (r.result) body += `<p class="eyebrow">Ergebnis${r.result.ai ? " (Claude, Websuche)" : r.result.demo ? " (simuliert)" : " (aus dem Archiv)"}</p>${resultHtml(item, r.result)}`;
+      if (r.result) body += `<p class="eyebrow">Ergebnis${r.result.ai ? " (Claude, Websuche)" : r.result.official ? (r.result.demo ? " (amtliche Daten + Schätzung)" : " (amtliche Daten)") : r.result.demo ? " (simuliert)" : " (aus dem Archiv)"}</p>${resultHtml(item, r.result)}`;
       if (r.status === "handoff") body += `<div class="handoff"><p>${icon("alert")} ${esc(r.handoff)}</p>${noteBlock(item, r, "Dein Ergebnis")}</div>`;
       if (r.status === "done" || r.status === "handoff") body += `<button class="btn btn-ghost btn-sm" data-act="rerun" data-id="${id}" type="button">${icon("refresh")} Erneut versuchen</button>`;
     }
 
     if (item.category === "approve") {
       const ct = RR.agent.contactFor(item, an);
+      const bg = cityBackground(item, an);
+      if (bg) body += `<p class="eyebrow">Hintergrund aus amtlichen Daten</p>${bg}`;
       body += `<div class="contact">${icon("user")}<div><strong>${esc(ct.org)}</strong><span class="muted small">${esc(ct.email)} · ${esc(ct.phone)}</span></div>${an.engine === "ai" ? "" : '<span class="badge badge-demo">Demo-Kontakt</span>'}</div>`;
       if (item.channels.includes("email") && item.email) {
         const locked = !!r.emailState;
