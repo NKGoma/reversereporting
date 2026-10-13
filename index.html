@@ -2,13 +2,13 @@
 <html lang="de">
 <head>
   <meta charset="utf-8">
+  <!-- Strikt lokal: Die App darf nur Dateien von sich selbst laden und nur mit Ollama auf localhost sprechen. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Reverse Reporting</title>
   <meta name="description" content="Prototyp: Aus früheren Artikeln einer wiederkehrenden Geschichte einen Recherche-Blueprint ableiten und von einem Agenten abarbeiten lassen.">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230a4f96'/%3E%3Cpath d='M9 22V10h7a4 4 0 0 1 0 8h-7m7 0 5 4' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=JetBrains+Mono:wght@400;500&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap">
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
   <link rel="stylesheet" href="assets/css/br.css">
 </head>
 <body>
@@ -21,6 +21,7 @@
         <span class="brand-sub">Prototyp · BR-Hackathon</span>
       </button>
       <div class="top-actions">
+        <span class="local-pill" title="Keine Verbindung ins Internet: Die App spricht nur mit diesem Gerät.">Lokal</span>
         <button class="ai-pill" id="ai-pill" data-act="open-settings" type="button"></button>
         <button class="btn btn-quiet btn-sm" data-act="reset" type="button"><span>Neu starten</span></button>
       </div>
@@ -35,7 +36,7 @@
   <div class="toasts" id="toasts" aria-live="polite"></div>
 
   <footer class="foot">
-    <p><span class="badge badge-demo">Demo</span> Offline-Prototyp: Aktuelle Werte, Kontakte, Antworten und Transkripte sind simuliert, sofern nicht der KI-Modus mit Websuche genutzt wird. Es werden keine E-Mails versendet und keine Anrufe geführt. Alle Daten bleiben im Browser.</p>
+    <p><span class="badge badge-demo">Demo</span> Läuft vollständig auf diesem Gerät: Regel-Engine im Browser, KI über Ollama auf localhost. Es gibt keine Verbindung ins Internet. Aktuelle Werte ohne Quelle, Kontakte, Antworten und Transkripte sind simuliert; es werden keine E-Mails versendet und keine Anrufe geführt.</p>
     <p>Amtliche Oktoberfest-Zahlen: Landeshauptstadt München, <a href="https://opendata.muenchen.de/dataset/oktoberfest" target="_blank" rel="noopener">Open-Data-Portal</a>, Datenlizenz Deutschland – Namensnennung – Version 2.0 (dl-by-de/2.0).</p>
   </footer>
 
@@ -51,7 +52,8 @@
   <script src="assets/js/storytypes.js"></script>
   <script src="assets/js/corpus.js"></script>
   <script src="assets/js/samples-corpus.js"></script>
-  <script src="assets/js/ai.js"></script>
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/llm.js"></script>
   <script src="assets/js/ui.js"></script>
   <script src="assets/js/app.js"></script>
   <script src="assets/js/views/home.js"></script>
@@ -60,7 +62,7 @@
   <script src="assets/js/views/research.js"></script>
   <script src="assets/js/views/reconcile.js"></script>
   <script src="assets/js/views/story.js"></script>
-  <script src="assets/js/views/settings.js"></script>
+  <script src="assets/js/views/llm-settings.js"></script>
   <script src="assets/js/views/corpus.js"></script>
 </body>
 </html>

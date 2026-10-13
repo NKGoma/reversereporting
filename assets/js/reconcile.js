@@ -64,7 +64,6 @@
           else out.push({ level: "ok", item: item.id, title: `Plausibel: ${item.title}`, text: `${F().fmtPct(R.metrics.deltaPct)} liegt im Rahmen des Archivtrends.` });
         }
         if (R.carried && !r.confirmed) out.push({ level: "warn", item: item.id, title: `Aus dem Vorjahr übernommen: ${item.title}`, text: "Der Agent hat keinen aktuellen Wert, nur die Angabe aus dem Archiv. Für dieses Jahr bestätigen." });
-        if (R.ai && R.confidence === "low") out.push({ level: "warn", item: item.id, title: `Unsichere Quelle: ${item.title}`, text: "Claude hat den Wert nur mit geringer Sicherheit gefunden." });
       }
 
       if (item.category === "approve") {

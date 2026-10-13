@@ -1,7 +1,7 @@
 /*
  * Demo-Daten für den Offline-Modus.
  * Preise der aktuellen Saison sind SIMULIERT und als "Demo" gekennzeichnet.
- * Im KI-Modus werden sie durch echte Websuche ersetzt.
+ * Echte Werte kommen aus den Datentabellen (Faktenbasis) oder werden von der Journalistin bestätigt.
  */
 (function () {
   const RR = (window.RR = window.RR || {});

@@ -7,9 +7,9 @@
   const RR = (window.RR = window.RR || {});
 
   const LIBS = {
-    jszip: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
-    pdf: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
-    pdfWorker: "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js",
+    jszip: "assets/vendor/jszip/jszip.min.js",
+    pdf: "assets/vendor/pdfjs/pdf.min.js",
+    pdfWorker: "assets/vendor/pdfjs/pdf.worker.min.js",
   };
   const loaded = {};
   function loadScript(src) {
@@ -89,7 +89,7 @@
     await loadScript(LIBS.pdf);
     const lib = window.pdfjsLib;
     lib.GlobalWorkerOptions.workerSrc = LIBS.pdfWorker;
-    const pdf = await lib.getDocument({ data: new Uint8Array(buf) }).promise;
+    const pdf = await lib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
     const lines = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);

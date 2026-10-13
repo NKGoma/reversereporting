@@ -133,16 +133,17 @@
         </div>
         <div class="type-card">
           <div class="type-top">
-            <span class="badge ${ai ? "badge-ai" : "badge-off"}">${icon(ai ? "spark" : "bot")}${ai ? "Claude" : "Offline-Engine"}</span>
+            <span class="badge ${ai ? "badge-ai" : "badge-off"}">${icon(ai ? "spark" : "bot")}${ai ? "Gemma (lokal)" : "Regel-Engine"}</span>
             <span class="muted small">Zieljahr <strong>${an.targetYear}</strong></span>
           </div>
           <p class="eyebrow">Story-Typ</p>
           <h2 class="type-name">${esc(t.label)}</h2>
           ${t.event && !t.label.includes(t.event) ? `<p class="type-event">${esc(t.event)}</p>` : ""}
           <p class="muted small">${esc(t.description || "")}</p>
+          ${ai && an.llm ? `<p class="small llm-meta">${icon("spark", "ic-xs")} ${esc(an.llm.model)}${an.llm.seconds ? ` · ${String(an.llm.seconds).replace(".", ",")} s` : " · aus dem Cache"}${an.llm.dropped ? ` · ${an.llm.dropped} nicht belegbare${an.llm.dropped === 1 ? "s Zitat" : " Zitate"} verworfen` : " · alle Zitate im Text gefunden"}${an.llm.truncated ? ` · ${an.llm.truncated} lange${an.llm.truncated === 1 ? "r Artikel" : " Artikel"} gekürzt` : ""}</p>` : ""}
           ${!ai && an.alternatives && an.alternatives[1] && an.alternatives[1].raw >= an.alternatives[0].raw * 0.5 && an.alternatives[1].id !== t.id
             ? `<p class="small type-alt">Auch möglich: <button type="button" class="link-btn" data-act="force-alt" data-id="${an.alternatives[1].id}">${esc(an.alternatives[1].label)}</button></p>` : ""}
-          ${ai ? "" : `<label class="type-switch"><span class="small muted">Falsch erkannt?</span>
+          ${`<label class="type-switch"><span class="small muted">${ai ? "Lieber Regel-Engine?" : "Falsch erkannt?"}</span>
             <select data-act="force-type" aria-label="Story-Typ ändern">${opts.map(([id, l]) => `<option value="${id}" ${id === t.id ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`}
         </div>
       </header>

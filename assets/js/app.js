@@ -80,7 +80,7 @@
 
   // fehlende Teile ergänzen, wenn ein Punkt die Spur wechselt
   function ensureShape(item) {
-    if (item.category === "agent" && !item.action) item.action = state.analysis && state.analysis.engine === "ai" ? "ai_research" : "lookup";
+    if (item.category === "agent" && !item.action) item.action = "lookup";
     if (item.category === "approve") {
       const c = RR.agent.contactFor(item, state.analysis);
       if (!item.channels.length) item.channels = ["email", "call"];
@@ -202,16 +202,9 @@
     document.getElementById("rail").hidden = (state.screen === "home" && !state.analysis) || state.screen === "corpus";
   }
 
-  function renderPill() {
-    const on = RR.ai.hasKey();
-    const el = document.getElementById("ai-pill");
-    el.classList.toggle("is-on", on);
-    el.innerHTML = `${icon("spark")}<span>${on ? "KI-Modus aktiv" : "KI-Modus aus"}</span>`;
-  }
-
   function render() {
     renderRail();
-    renderPill();
+    RR.renderLlmPill();
     const main = document.getElementById("main");
     main.innerHTML = (RR.views[state.screen] || RR.views.home)();
     main.dataset.screen = state.screen;
@@ -241,6 +234,7 @@
     d.hidden = false;
     scrim.hidden = false;
     document.body.classList.add("has-drawer");
+    if (state.drawer.kind === "settings" && RR.after.settingsDrawer) RR.after.settingsDrawer();
   }
   let returnFocus = null;
   function openDrawer(spec) {
@@ -277,6 +271,7 @@
       <button class="btn btn-primary" data-act="copy-export" type="button">${icon("copy")} Kopieren</button></div>`;
   }
   Object.assign(RR, { openDrawer, closeDrawer, refreshItem });
+  RR.app.renderDrawer = renderDrawer;
   RR.app.render = render;
   RR.app.renderRail = renderRail;
   RR.app.go = go;
@@ -297,6 +292,8 @@
       }
       state = fresh();
       state.running = false;
+      if (RR.corpusMem) RR.corpusMem.articles = [];
+      RR.store.del("corpus", "current");
       state.drawer = null;
       save();
       delete el.dataset.armed;
@@ -322,6 +319,6 @@
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);
   else setTimeout(render, 0);
-  // amtliche Daten im Hintergrund aktualisieren; bei Erfolg neu zeichnen
-  if (RR.facts) RR.facts.refresh().then((ok) => { if (ok) render(); });
+  // lokale KI (Ollama) prüfen; das Badge oben aktualisiert sich selbst
+  RR.ai.check();
 })();

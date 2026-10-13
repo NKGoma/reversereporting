@@ -9,8 +9,15 @@
   const A = () => RR.app;
   const S = () => RR.app.state;
   const C = () => RR.corpus;
-  // Volltexte nur im Speicher (können hunderte Artikel sein); gespeichert wird nur das Ergebnis
+  // Volltexte im Speicher und lokal in IndexedDB (können hunderte Artikel sein);
+  // im localStorage-Zustand liegt nur das Ergebnis
   RR.corpusMem = RR.corpusMem || { articles: [] };
+
+  // Gemma-Ergebnisse hängen an der Artikelmenge eines Typs, nicht an seiner (wechselnden) ID
+  const sig = (t) => { let h = 5381; const k = t.articleIds.slice().sort().join("|"); for (let i = 0; i < k.length; i++) h = (Math.imul(h, 33) ^ k.charCodeAt(i)) >>> 0; return h.toString(36) + "." + t.articleIds.length; };
+  const gem = (t) => { const c = S().corpus; return (c && c.gemma && t && t.articleIds && c.gemma[sig(t)]) || null; };
+  const labelOf = (t) => (gem(t) ? gem(t).label : t.label);
+  const typeById = (id) => S().corpus.result.types.find((x) => x.id === id);
 
   /* ---------- Start-Kachel auf der Startseite ---------- */
   RR.corpusEntryHtml = function () {
@@ -62,6 +69,9 @@
     const unique = arts.filter((a) => a.text.length >= 40).filter((a) => { const k = (a.title || "").toLowerCase() + "|" + (a.date || a.year); if (seen.has(k)) return false; seen.add(k); return true; });
     if (failed) toast(`${failed} Datei(en) konnten nicht gelesen werden.`, "warn");
     if (unique.length < 3) { toast("Für eine Archiv-Analyse braucht es mindestens drei Artikel.", "warn"); A().render(); return; }
+    const dupes = arts.length - unique.length;
+    if (dupes > 0) toast(`${dupes} Dublette(n) oder fast leere Dateien übersprungen.`);
+    await RR.store.put("corpus", "current", { articles: unique, savedAt: Date.now() });
     run(unique, {});
   }
 
@@ -69,23 +79,27 @@
     const s = S();
     RR.corpusMem.articles = articles;
     const result = C().analyzeCorpus(articles, opts);
-    s.corpus = { result, eventId: opts.eventId || result.event.id, anchors: opts.anchors || {}, nextAnchor: opts.nextAnchor || "", sample: opts.sample || null };
+    const keep = opts.keep && s.corpus ? s.corpus.gemma : null;
+    const classified = !!(opts.keep && s.corpus && s.corpus.classified);
+    s.corpus = { classified, result, eventId: opts.eventId || result.event.id, anchors: opts.anchors || {}, nextAnchor: opts.nextAnchor || "", sample: opts.sample || null, assign: opts.assign || {}, gemma: keep || {} };
     s.screen = "corpus";
     RR.closeDrawer && s.drawer && RR.closeDrawer();
     A().save();
     A().render();
     window.scrollTo({ top: 0 });
   }
-  function rerun(changes) {
+  async function rerun(changes) {
     const c = S().corpus;
-    if (!RR.corpusMem.articles.length) { restoreArticles(); }
+    if (!RR.corpusMem.articles.length) await restoreArticles();
     if (!RR.corpusMem.articles.length) return toast("Die Artikel sind nicht mehr im Speicher – bitte das Archiv erneut hochladen.", "warn");
-    run(RR.corpusMem.articles, { eventId: c.eventId, anchors: c.anchors, nextAnchor: c.nextAnchor, sample: c.sample, ...changes });
+    run(RR.corpusMem.articles, { eventId: c.eventId, anchors: c.anchors, nextAnchor: c.nextAnchor, sample: c.sample, assign: c.assign, keep: true, ...changes });
   }
-  // Demo-Archive lassen sich nach dem Neuladen wiederherstellen
-  function restoreArticles() {
+  // nach dem Neuladen: Demo-Archive neu erzeugen, hochgeladene aus IndexedDB holen
+  async function restoreArticles() {
     const c = S().corpus;
-    if (c && c.sample && RR.CORPUS_SAMPLES[c.sample]) RR.corpusMem.articles = sampleArticles(c.sample);
+    if (c && c.sample && RR.CORPUS_SAMPLES[c.sample]) { RR.corpusMem.articles = sampleArticles(c.sample); return; }
+    const saved = await RR.store.get("corpus", "current");
+    if (saved && saved.articles) RR.corpusMem.articles = saved.articles;
   }
 
   // feste IDs, damit Demo-Artikel nach dem Neuladen wiedergefunden werden
@@ -119,10 +133,10 @@
       ${ticks.map((d) => `<line class="cal-grid ${d === 0 ? "is-zero" : ""}" x1="${X(d)}" x2="${X(d)}" y1="${top - 8}" y2="${H - 6}"/><text class="cal-tick" x="${X(d)}" y="${top - 14}" text-anchor="middle">${d === 0 ? esc(r.event.anchorLabel) : (d > 0 ? "+" : "−") + Math.abs(d)}</text>`).join("")}
       ${types.map((t, i) => {
         const y = top + i * row + row / 2;
-        return `<g class="cal-row" data-act="ctype-open" data-id="${t.id}" role="button" tabindex="0" aria-label="${esc(t.label)}: Tag ${t.median}">
+        return `<g class="cal-row" data-act="ctype-open" data-id="${t.id}" role="button" tabindex="0" aria-label="${esc(labelOf(t))}: Tag ${t.median}">
           <rect class="cal-hit" x="0" y="${y - row / 2}" width="${W}" height="${row}"/>
           <circle class="cal-reg reg-${t.regularity}" cx="10" cy="${y}" r="4.5"/>
-          <text class="cal-label" x="22" y="${y + 4}">${esc(t.label.length > 26 ? t.label.slice(0, 25) + "…" : t.label)}</text>
+          <text class="cal-label" x="22" y="${y + 4}">${esc(((l) => (l.length > 26 ? l.slice(0, 25) + "…" : l))(labelOf(t)))}</text>
           ${t.q1 != null ? `<line class="cal-iqr" x1="${X(t.q1)}" x2="${Math.max(X(t.q3), X(t.q1) + 1)}" y1="${y}" y2="${y}"/>` : ""}
           ${t.points.map((p) => `<circle class="cal-pt" cx="${X(p.rel)}" cy="${y}" r="4" style="fill:${CYCLE_COLORS[cyc.indexOf(p.cycle) % CYCLE_COLORS.length]}"><title>${esc(p.cycle)}: Tag ${p.rel}</title></circle>`).join("")}
           <path class="cal-med" d="M${X(t.median)} ${y - 8} l5 8 l-5 8 l-5 -8 z"/>
@@ -171,6 +185,8 @@
         <p class="muted small">${r.event.id === "oktoberfest" ? "Wiesn-Start berechnet (Samstag 15 Tage vor dem ersten Oktobersonntag; Dauer laut Stadt München)." : r.event.id === "wahl" ? "Wahltage aus den Artikeln erkannt – bei Bedarf korrigieren." : "Ohne bekanntes Ereignis: Tag mit den meisten Artikeln pro Jahr. Bei Bedarf korrigieren."}${r.unassigned ? ` ${r.unassigned} Artikel liegen keinem Termin nahe genug.` : ""}</p>
       </section>
 
+      ${gemmaCard(c)}
+
       <section class="card">
         <div class="section-head"><div><p class="eyebrow">Story-Kalender</p><h2>Wann welche Geschichte erscheint</h2></div>
           <span class="legend">${r.cycles.map((cy, i) => `<span class="lg-dot" style="background:${CYCLE_COLORS[i % CYCLE_COLORS.length]}"></span>${esc(cy.key.length === 4 ? cy.key : cy.key.slice(0, 4))}`).join("")}<span class="lg-med"></span>Median</span></div>
@@ -183,10 +199,10 @@
         <div class="table-wrap"><table class="data ctable">
           <thead><tr><th>Story-Typ</th><th>Erscheint</th><th>Zeitpunkt</th><th>Was immer vorkommt</th><th></th></tr></thead>
           <tbody>${r.types.map((t) => `<tr>
-            <td><button type="button" class="link-btn" data-act="ctype-open" data-id="${t.id}">${esc(t.label)}</button>${t.discovered ? ` <span class="badge badge-ai">entdeckt</span>` : ""}<small>${t.n} Artikel</small></td>
+            <td><button type="button" class="link-btn" data-act="ctype-open" data-id="${t.id}">${esc(labelOf(t))}</button>${t.discovered ? ` <span class="badge badge-ai">entdeckt</span>` : ""}${gem(t) ? ` <span class="badge badge-ai" title="von Gemma vertieft">${icon("spark", "ic-xs")}Gemma</span>` : ""}<small>${t.n} Artikel${gem(t) && gem(t).label !== t.label ? ` · Regel-Engine: ${esc(t.label)}` : ""}</small></td>
             <td><span class="reg reg-${t.regularity}">${t.regularity}</span><small>${regLabel(t, r)}</small></td>
             <td class="num">${relLabel(t.median)}<small>${esc(t.phase || "")}</small></td>
-            <td>${(t.aspects.length ? t.aspects.slice(0, 4).map((a) => `<span class="chip">${esc(a.label)} <b>${Math.round(a.share * 100)} %</b></span>`) : (t.terms || []).slice(0, 4).map((w) => `<span class="chip chip-term">${esc(w)}</span>`)).join(" ")}</td>
+            <td>${gem(t) && gem(t).aspects.length ? gem(t).aspects.slice(0, 4).map((a) => `<span class="chip ${a.quote ? "" : "chip-term"}" title="${esc(a.quote || "ohne Beleg im Text")}">${esc(a.label)}${a.quote ? ` ${icon("check", "ic-xs")}` : ""}</span>`).join(" ") : (t.aspects.length ? t.aspects.slice(0, 4).map((a) => `<span class="chip">${esc(a.label)} <b>${Math.round(a.share * 100)} %</b></span>`) : (t.terms || []).slice(0, 4).map((w) => `<span class="chip chip-term">${esc(w)}</span>`)).join(" ")}</td>
             <td><button class="btn btn-ghost btn-sm" data-act="ctype-blueprint" data-id="${t.id}" type="button">Blueprint ${icon("arrow")}</button></td>
           </tr>`).join("")}</tbody></table></div>
         ${r.singles.length ? `<p class="muted small">${r.singles.length} Einzelstücke ohne wiederkehrendes Muster.</p>` : ""}
@@ -196,10 +212,95 @@
 
       <div class="actions">
         <button class="btn btn-ghost" data-act="home" type="button">Zur Startseite</button>
-        ${RR.ai.hasKey() && r.types.some((t) => t.discovered) ? `<button class="btn btn-secondary" data-act="corpus-ai-name" type="button">${icon("spark")} Entdeckte Typen von Claude benennen lassen</button>` : ""}
+        ${c.sample ? "" : `<button class="btn btn-ghost" data-act="corpus-delete" type="button">${icon("trash")}<span>Archiv von diesem Gerät löschen</span></button>`}
       </div>
     </section>`;
   };
+
+  /* ---------- Gemma: Story-Typen vertiefen ---------- */
+  const job = { running: false, cur: null, done: 0, total: 0, prog: null, step: "" };
+  function gemmaCard(c) {
+    const r = c.result;
+    const todo = r.types.filter((t) => !gem(t)).length;
+    const st = RR.ai.state.status;
+    if (job.running) {
+      return `<section class="card gemma-card" id="gemma-card">${gemmaJobHtml()}</section>`;
+    }
+    const done = r.types.length - todo;
+    return `<section class="card gemma-card" id="gemma-card">
+      <div class="section-head"><div><p class="eyebrow">${icon("spark")} Lokale KI</p><h2>${done && !todo ? "Alle Story-Typen von Gemma vertieft" : "Mit Gemma vertiefen"}</h2></div>
+        ${todo ? `<button class="btn btn-primary" data-act="corpus-gemma" type="button" ${st === "down" || st === "nomodel" ? "disabled" : ""}>${icon("spark")} ${done ? `Restliche ${todo} Typen vertiefen` : `${todo} Story-Typen vertiefen`}</button>` : ""}</div>
+      <p class="muted small">${st === "down" || st === "nomodel" ? `${esc(RR.ai.statusText())} – <button type="button" class="link-btn" data-act="open-settings">Einrichten</button>. Die Regel-Analyse oben ist vollständig; Gemma ergänzt sie.` :
+        `Gemma liest pro Story-Typ bis zu sechs Beispiele (Titel und Anfang) und liefert einen redaktionellen Namen, die Kernaspekte mit wörtlichem Beleg, typische Quellen und was nur die Reporterin / der Reporter erledigen kann.${r.singles.length && !c.classified && (RR.EVENTS[r.event.id] || {}).types ? ` Vorher ordnet Gemma die ${r.singles.length} Einzelstücke anhand der Überschrift bekannten Typen zu.` : ""} Etwa 20–60 Sekunden pro Typ, läuft lokal, Ergebnisse werden zwischengespeichert.`}</p>
+    </section>`;
+  }
+  function gemmaJobHtml() {
+    return `<div class="section-head"><div><p class="eyebrow">${icon("spark")} Gemma arbeitet · ${job.done} von ${job.total}</p><h2>${esc(job.step)}</h2></div>
+        <button class="btn btn-ghost" data-act="llm-cancel" type="button">${icon("x")} Abbrechen</button></div>
+      <span class="meter"><span style="width:${job.total ? Math.round((job.done / job.total) * 100) : 0}%"></span></span>
+      <div id="gemma-prog">${RR.llmProgressHtml(job.prog || { phase: "prompt" })}</div>`;
+  }
+  const paintJob = () => { const el = document.getElementById("gemma-card"); if (el && S().screen === "corpus") el.innerHTML = gemmaJobHtml(); };
+
+  async function runGemma() {
+    const c = S().corpus;
+    if (job.running || !c) return;
+    if (!RR.ai.ready()) await RR.ai.check();
+    if (!RR.ai.ready()) { RR.openDrawer({ kind: "settings" }); return; }
+    if (!RR.corpusMem.articles.length) await restoreArticles();
+    if (!RR.corpusMem.articles.length) return toast("Die Artikel sind nicht mehr im Speicher – bitte das Archiv erneut hochladen.", "warn");
+    const byId = new Map(RR.corpusMem.articles.map((a) => [a.id, a]));
+    const ev0 = c.result.event;
+    const known = (RR.EVENTS[ev0.id] || { types: [] }).types;
+    const singles = c.result.singles.map((id) => byId.get(id)).filter(Boolean);
+    const classify = singles.length && known.length && !c.classified;
+    Object.assign(job, { running: true, done: 0, total: c.result.types.filter((t) => !gem(t)).length + (classify ? 1 : 0), prog: null });
+    A().render();
+    let failed = 0;
+    const onProg = (p) => { job.prog = p; const el = document.getElementById("gemma-prog"); if (el) el.innerHTML = RR.llmProgressHtml(p); };
+    try {
+      // 1. Einzelstücke zuerst zuordnen – das verändert die Typen, die danach vertieft werden
+      if (classify) {
+        job.step = `${singles.length} Einzelstücke zuordnen (nur Überschriften)`;
+        job.prog = null;
+        paintJob();
+        const assign = await RR.ai.classifyTitles(singles.map((a) => ({ id: a.id, title: a.title })), known.map((t) => ({ id: t.id, label: t.label })), ev0.label, onProg);
+        job.done++;
+        const n = Object.keys(assign).length;
+        if (n) {
+          const cc = S().corpus;
+          run(RR.corpusMem.articles, { eventId: cc.eventId, anchors: cc.anchors, nextAnchor: cc.nextAnchor, sample: cc.sample, assign: { ...cc.assign, ...assign }, keep: true });
+          toast(`Gemma hat ${n} Einzelstück${n === 1 ? "" : "e"} bekannten Story-Typen zugeordnet.`);
+        }
+        S().corpus.classified = true;
+      }
+      // 2. jeden Story-Typ vertiefen (größte zuerst)
+      const r = S().corpus.result;
+      const todo = r.types.filter((t) => !gem(t)).sort((a, b) => b.n - a.n);
+      job.total = job.done + todo.length;
+      for (const t of todo) {
+        job.step = `Story-Typ „${t.label}“ (${t.n} Artikel)`;
+        job.prog = null;
+        paintJob();
+        try {
+          const g = await RR.ai.enrichType(t, t.articleIds.map((id) => byId.get(id)).filter(Boolean), r.event.label, onProg);
+          S().corpus.gemma[sig(t)] = g;
+          A().save();
+        } catch (err) {
+          if (err.name === "AbortError") throw err;
+          failed++;
+        }
+        job.done++;
+      }
+      toast(failed ? `Fertig – ${failed} Story-Typ(en) ohne Ergebnis.` : "Gemma ist fertig.", failed ? "warn" : undefined);
+    } catch (err) {
+      toast(err.name === "AbortError" ? "Abgebrochen – bisherige Ergebnisse bleiben erhalten." : "Gemma: " + err.message, "warn");
+    } finally {
+      job.running = false;
+      A().save();
+      if (S().screen === "corpus") A().render();
+    }
+  }
 
   function planHtml(c) {
     const r = c.result;
@@ -217,7 +318,7 @@
       <div class="plan-months">${Object.entries(byMonth).map(([m, es]) => `
         <div class="plan-month"><h3>${esc(m)}</h3><ul>${es.map((e) => `
           <li><span class="plan-date">${C().deShort(e.from)}${e.from !== e.to ? `–${C().deShort(e.to)}` : ""}</span>
-            <span class="plan-what"><strong>${esc(e.label)}</strong><small>${relLabel(e.rel)} · ${esc(e.regularity)}</small></span>
+            <span class="plan-what"><strong>${esc(labelOf(typeById(e.typeId) || e))}</strong><small>${relLabel(e.rel)} · ${esc(e.regularity)}</small></span>
             <button class="btn btn-ghost btn-sm" data-act="ctype-blueprint" data-id="${e.typeId}" type="button">Vorbereiten</button></li>`).join("")}</ul></div>`).join("")}
       </div>
     </section>`;
@@ -229,7 +330,8 @@
     const r = c && c.result;
     const t = r && r.types.find((x) => x.id === id);
     if (!t) return "";
-    return `<div class="drawer-head"><div><p class="eyebrow">${t.discovered ? "Entdeckter Story-Typ" : "Story-Typ"} · ${esc(t.regularity)}</p><h2>${esc(t.label)}</h2></div>
+    const g = gem(t);
+    return `<div class="drawer-head"><div><p class="eyebrow">${t.discovered ? "Entdeckter Story-Typ" : "Story-Typ"} · ${esc(t.regularity)}</p><h2>${esc(labelOf(t))}</h2></div>
         <button class="icon-btn drawer-close" data-act="close-drawer" type="button" aria-label="Schließen">${icon("x")}</button></div>
       <div class="drawer-body">
         <ul class="facts">
@@ -238,7 +340,15 @@
           <li><span class="f-l">Typische Länge</span><span class="f-v">ca. ${t.words} Wörter</span><span class="f-s"></span></li>
           ${r.next ? (() => { const e = r.next.entries.find((x) => x.typeId === t.id); return e ? `<li><span class="f-l">Nächster Termin</span><span class="f-v">${C().deDate(e.from)}${e.from !== e.to ? ` – ${C().deDate(e.to)}` : ""}</span><span class="f-s">${esc(r.next.label)}</span></li>` : ""; })() : ""}
         </ul>
-        ${t.aspects.length ? `<p class="eyebrow">Was immer vorkommt</p><ul class="aspects">${t.aspects.map((a) => `<li><span>${esc(a.label)}</span><span class="bar"><span style="width:${Math.round(a.share * 100)}%"></span></span><b>${a.hits}/${t.n}</b></li>`).join("")}</ul>` : ""}
+        ${g ? `<div class="gemma-box">
+          <p class="eyebrow">${icon("spark")} Gemma · ${g.sample} Beispiele gelesen</p>
+          ${g.description ? `<p>${esc(g.description)}</p>` : ""}
+          ${g.aspects.length ? `<p class="label">Kernaspekte</p><ul class="g-aspects">${g.aspects.map((a) => `<li><strong>${esc(a.label)}</strong>${a.quote ? `<blockquote>„${esc(a.quote.length > 240 ? a.quote.slice(0, 239) + "…" : a.quote)}“<cite>${esc(a.title || "")}${a.date ? " · " + C().deDate(a.date) : ""}</cite></blockquote>` : `<span class="muted small"> – kein wörtlicher Beleg gefunden</span>`}</li>`).join("")}</ul>` : ""}
+          ${g.sources.length ? `<p class="label">Typische Quellen</p><p>${g.sources.map((x) => `<span class="chip">${esc(x)}</span>`).join(" ")}</p>` : ""}
+          ${g.reporter.length ? `<p class="label">Nur für die Reporterin / den Reporter</p><ul class="ticks">${g.reporter.map((x) => `<li>${icon("user")} ${esc(x)}</li>`).join("")}</ul>` : ""}
+          ${g.dropped ? `<p class="muted small">${g.dropped} Zitat(e) ohne Fundstelle im Text verworfen.</p>` : ""}
+        </div>` : ""}
+        ${t.aspects.length ? `<p class="eyebrow">${g ? "Regel-Engine: " : ""}Was immer vorkommt</p><ul class="aspects">${t.aspects.map((a) => `<li><span>${esc(a.label)}</span><span class="bar"><span style="width:${Math.round(a.share * 100)}%"></span></span><b>${a.hits}/${t.n}</b></li>`).join("")}</ul>` : ""}
         ${(t.terms || []).length ? `<p class="eyebrow">Typische Begriffe</p><p>${t.terms.map((w) => `<span class="chip chip-term">${esc(w)}</span>`).join(" ")}</p>` : ""}
         <p class="eyebrow">Beispiele</p>
         <ul class="examples">${t.examples.map((e) => `<li><span class="muted small">${e.date ? C().deDate(e.date) : "ohne Datum"}</span>${esc(e.title)}</li>`).join("")}</ul>
@@ -256,35 +366,43 @@
     "ctype-blueprint": async (el) => {
       const c = S().corpus;
       const t = c.result.types.find((x) => x.id === el.dataset.id);
-      if (!RR.corpusMem.articles.length) restoreArticles();
+      if (!RR.corpusMem.articles.length) await restoreArticles();
       const arts = RR.corpusMem.articles.filter((a) => t.articleIds.includes(a.id));
       if (!arts.length) return toast("Die Artikel sind nicht mehr im Speicher – bitte das Archiv erneut hochladen.", "warn");
       const s = S();
       s.articles = arts.map((a) => ({ ...a }));
-      s.fromCorpus = { label: t.label };
+      const label = labelOf(t);
+      s.fromCorpus = { label };
       if (s.drawer) RR.closeDrawer();
-      await A().runAnalysis(t.bp || "generic"); // ohne passende Vorlage: allgemeine Engine
+      // Gemma-Modus: Gemma baut den Blueprint; sonst passende Vorlage oder allgemeine Engine
+      await A().runAnalysis(s.engine === "ai" && RR.ai.ready() ? undefined : t.bp || "generic");
       const an = S().analysis;
-      if (an && an.type.id === "generic") { an.type.label = t.label; an.type.short = t.label.split(" · ")[0]; an.type.event = an.type.short; A().save(); A().render(); }
+      if (an && an.type.id === "generic") { an.type.label = label; an.type.short = label.split(" · ")[0]; an.type.event = an.type.short; A().save(); A().render(); }
     },
     "corpus-ics": () => {
       const r = S().corpus.result;
       const d = (iso) => iso.replace(/-/g, "");
       const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Reverse Reporting//Themenarchiv//DE"];
       r.next.entries.forEach((e, i) => lines.push("BEGIN:VEVENT", `UID:rr-${d(e.center)}-${i}@reverse-reporting`, `DTSTAMP:${d(new Date().toISOString().slice(0, 10))}T000000Z`,
-        `DTSTART;VALUE=DATE:${d(e.from)}`, `DTEND;VALUE=DATE:${d(C().addDays(e.to, 1))}`, `SUMMARY:${r.event.label}: ${e.label}`,
+        `DTSTART;VALUE=DATE:${d(e.from)}`, `DTEND;VALUE=DATE:${d(C().addDays(e.to, 1))}`, `SUMMARY:${r.event.label}: ${labelOf(typeById(e.typeId) || e)}`,
         `DESCRIPTION:Typischer Zeitpunkt laut Archiv: ${relLabel(e.rel)} (${e.regularity}).`, "END:VEVENT"));
       lines.push("END:VCALENDAR");
       RR.ui.offerFile(`story-plan-${r.next.anchor.slice(0, 4)}.ics`, lines.join("\r\n"), "text/calendar");
     },
-    "corpus-ai-name": async () => {
-      const r = S().corpus.result;
-      toast("Claude benennt die entdeckten Typen …");
-      try {
-        const names = await RR.ai.nameClusters(r.types.filter((t) => t.discovered).map((t) => ({ id: t.id, titles: t.examples.map((e) => e.title) })));
-        names.forEach((n) => { const t = r.types.find((x) => x.id === n.id); if (t && n.label) t.label = n.label; });
-        A().save(); A().render();
-      } catch (err) { toast("KI-Modus: " + err.message, "warn"); }
+    "corpus-gemma": () => runGemma(),
+    "corpus-delete": (el) => {
+      if (!el.dataset.armed) {
+        el.dataset.armed = "1";
+        el.querySelector("span").textContent = "Wirklich löschen? Nochmal klicken";
+        setTimeout(() => { if (el.isConnected) { delete el.dataset.armed; el.querySelector("span").textContent = "Archiv von diesem Gerät löschen"; } }, 4000);
+        return;
+      }
+      RR.corpusMem.articles = [];
+      RR.store.del("corpus", "current");
+      S().corpus = null;
+      A().save();
+      A().go("home");
+      toast("Archiv gelöscht – Texte und Ergebnisse sind von diesem Gerät entfernt.");
     },
   });
   RR.onChange["corpus-event"] = (el) => rerun({ eventId: el.value, anchors: {} });

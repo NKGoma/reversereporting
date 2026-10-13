@@ -60,8 +60,8 @@
           <div class="engine-row">
             <span class="label">Analyse mit</span>
             <div class="seg" role="radiogroup" aria-label="Analyse-Engine">
-              <button type="button" role="radio" aria-checked="${!ai}" class="${!ai ? "is-on" : ""}" data-act="set-engine" data-engine="offline">Offline-Engine</button>
-              <button type="button" role="radio" aria-checked="${ai}" class="${ai ? "is-on" : ""}" data-act="set-engine" data-engine="ai">${icon("spark")} Claude</button>
+              <button type="button" role="radio" aria-checked="${!ai}" class="${!ai ? "is-on" : ""}" data-act="set-engine" data-engine="offline">Regel-Engine</button>
+              <button type="button" role="radio" aria-checked="${ai}" class="${ai ? "is-on" : ""}" data-act="set-engine" data-engine="ai">${icon("spark")} Gemma (lokal)</button>
             </div>
           </div>
           <div class="start-actions">
@@ -99,7 +99,7 @@
         </div>
         ${lib.length ? `<div class="lib-grid">${lib.map((b) => `
           <article class="lib-card">
-            <p class="eyebrow">${b.engine === "ai" ? "KI-Blueprint" : "Blueprint"} · gespeichert ${new Date(b.savedAt).toLocaleDateString("de-DE")}</p>
+            <p class="eyebrow">${b.engine === "ai" ? "Gemma-Blueprint" : "Blueprint"} · gespeichert ${new Date(b.savedAt).toLocaleDateString("de-DE")}</p>
             <h3>${esc(b.name)}</h3>
             <p class="muted small">${b.items.length} Punkte · zuletzt für ${b.lastYear}</p>
             <div class="lib-actions">
@@ -129,7 +129,7 @@
       try {
         const arts = await RR.ingest.readFile(f);
         const ok = arts.filter((a) => a.text.length >= 40);
-        if (!ok.length) toast(`„${f.name}“ enthält kaum Text.`, "warn");
+        if (!ok.length) toast(/\.pdf$/i.test(f.name) ? `„${f.name}“: gescannt – Text fehlt (PDF ohne Textebene).` : `„${f.name}“ enthält kaum Text.`, "warn");
         s.articles.push(...ok);
       } catch (err) {
         toast(`„${f.name}“: ${err.message || "konnte nicht gelesen werden"}`, "warn");
@@ -149,18 +149,27 @@
     s.include = {};
   }
 
-  // Analyse starten (offline oder mit Claude)
+  // Analyse starten (Regel-Engine oder Gemma über Ollama)
   async function runAnalysis(force) {
     const s = S();
-    const useAI = s.engine === "ai" && RR.ai.hasKey() && !force;
+    const useAI = s.engine === "ai" && !force;
     const main = document.getElementById("main");
     if (useAI) {
-      main.innerHTML = `<section class="loading"><div class="pulse">${icon("spark")}</div><h2>Claude liest ${s.articles.length} Artikel …</h2><p class="muted">Muster erkennen, Belegstellen suchen, Checkliste entwerfen. Das dauert etwa 20 bis 60 Sekunden.</p></section>`;
-      try {
-        s.analysis = await RR.ai.analyze(s.articles);
-      } catch (err) {
-        toast(`KI-Modus: ${err.message} – Offline-Engine übernimmt.`, "warn");
+      if (!RR.ai.ready()) await RR.ai.check();
+      if (!RR.ai.ready()) {
+        toast(`${RR.ai.statusText()} – die Regel-Engine übernimmt.`, "warn");
         s.analysis = RR.analyze(s.articles);
+      } else {
+        main.innerHTML = `<section class="loading"><div class="pulse">${icon("spark")}</div><h2>Gemma liest ${s.articles.length} Artikel …</h2>
+          <p class="muted">Muster erkennen, Belegstellen suchen, Checkliste entwerfen – lokal auf diesem Gerät. Meist 30 bis 90 Sekunden.</p>
+          <div id="llm-progress">${RR.llmProgressHtml({ phase: "prompt" })}</div>
+          <button class="btn btn-ghost" data-act="llm-cancel" type="button">${icon("x")} Abbrechen</button></section>`;
+        try {
+          s.analysis = await RR.ai.analyze(s.articles, (p) => { const el = document.getElementById("llm-progress"); if (el) el.innerHTML = RR.llmProgressHtml(p, "Punkte", (p.text || "").split('"title"').length - 1); });
+        } catch (err) {
+          toast(err.name === "AbortError" ? "Gemma abgebrochen – die Regel-Engine übernimmt." : `Gemma: ${err.message} – die Regel-Engine übernimmt.`, "warn");
+          s.analysis = RR.analyze(s.articles);
+        }
       }
     } else {
       s.analysis = RR.analyze(s.articles, force ? { force } : {});
@@ -204,7 +213,7 @@
     },
     "set-engine": (el) => {
       const s = S();
-      if (el.dataset.engine === "ai" && !RR.ai.hasKey()) { RR.openDrawer({ kind: "settings", thenEngine: true }); return; }
+      if (el.dataset.engine === "ai" && !RR.ai.ready()) { RR.openDrawer({ kind: "settings", thenEngine: true }); RR.ai.check(); return; }
       s.engine = el.dataset.engine;
       A().save();
       A().render();

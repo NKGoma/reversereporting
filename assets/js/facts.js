@@ -62,7 +62,6 @@
     license: "dl-by-de/2.0",
     licenseUrl: "https://www.govdata.de/dl-de/by-2-0",
     url: "https://opendata.muenchen.de/dataset/oktoberfest/resource/e0f664cf-6dd9-4743-bd2b-81a8b18bd1d2",
-    api: "https://opendata.muenchen.de/api/3/action/datastore_search?resource_id=e0f664cf-6dd9-4743-bd2b-81a8b18bd1d2&limit=500",
     asOf: "Stand Juli 2026",
     live: false,
     builtin: true,
@@ -162,38 +161,8 @@
   // Spalte, die zu einem Checklisten-Titel passt
   const columnFor = (ds, title) => Object.keys(ds.columns).find((c) => ds.columns[c].match.test(title)) || null;
 
-  /* ---------- Live-Aktualisierung (wenn das Portal erreichbar ist) ---------- */
-  async function refresh() {
-    if (!window.fetch || location.protocol === "file:") return false;
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 4000);
-    try {
-      const r = await fetch(CITY.api, { signal: ctl.signal });
-      if (!r.ok) return false;
-      const j = await r.json();
-      const recs = (j.result && j.result.records) || [];
-      const maxYear = Math.max(...CITY.rows.map((x) => x.jahr));
-      const fresh = recs.map((x) => {
-        const o = { jahr: Number(x.jahr) };
-        Object.keys(CITY.columns).forEach((c) => { const n = Number(String(x[c]).replace(",", ".")); o[c] = isFinite(n) && x[c] !== "" && x[c] != null ? n : null; });
-        return o;
-      }).filter((o) => o.jahr > maxYear);
-      CITY.live = true;
-      CITY.asOf = "live geprüft " + new Date().toLocaleDateString("de-DE");
-      if (fresh.length) {
-        CITY.rows = CITY.rows.concat(fresh).sort((a, b) => a.jahr - b.jahr);
-        CITY.title = `Oktoberfest 1985–${CITY.rows[CITY.rows.length - 1].jahr}`;
-      }
-      return true;
-    } catch (e) {
-      return false; // blockiert oder offline: mitgelieferter Stand bleibt
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   RR.facts = {
-    all, get, forEvent, row, value, series, latest, before, fmt, source, columnFor, parseCsv, refresh,
+    all, get, forEvent, row, value, series, latest, before, fmt, source, columnFor, parseCsv,
     addUpload(title, text) {
       const ds = fromUpload(title, text);
       custom = [...custom, ds];

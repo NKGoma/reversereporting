@@ -184,7 +184,9 @@
     const types = ev ? ev.types : [];
     const meta = articles.map((a) => {
       const c = cycleOf(a);
-      const t = classify(a, types);
+      // von Gemma zugeordnete Einzelstücke (nur bekannte Story-Typen)
+      const forced = opts.assign && opts.assign[a.id] && types.find((x) => x.id === opts.assign[a.id]);
+      const t = forced || classify(a, types);
       return { a, id: a.id, cycle: c ? c.key : null, rel: c && a.date ? diffDays(a.date, c.anchor) : null, typeId: t ? t.id : null };
     });
 

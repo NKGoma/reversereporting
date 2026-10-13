@@ -559,6 +559,7 @@ tr.fc-warn .fc-note { color: var(--warn); }
 .reg-regelmäßig { color: var(--ok); }
 .reg-meistens { color: var(--warn); }
 .reg-gelegentlich { color: var(--muted); }
+.chip { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; margin: 1px 0; border-radius: 999px; background: var(--surface-3); color: var(--text); font-size: 0.82rem; }
 .chip b { font-weight: 700; color: var(--muted); }
 .chip-term { background: var(--ai-bg); color: var(--ai); }
 .plan-months { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 14px; margin-top: 10px; }
@@ -576,3 +577,29 @@ tr.fc-warn .fc-note { color: var(--warn); }
 .examples li { display: flex; flex-direction: column; padding: 8px 10px; background: var(--surface-2); border-radius: 8px; }
 @media (max-width: 920px) { .corpus-entry { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 640px) { .plan-month li { grid-template-columns: minmax(0, 1fr) auto; } .plan-date { grid-column: 1 / -1; } .aspects li { grid-template-columns: minmax(0, 1fr) 70px auto; } }
+
+/* ---------- Lokale KI (Gemma über Ollama) ---------- */
+.local-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font: 600 0.78rem var(--font-body); color: var(--on-blue-muted); border: 1px dashed rgba(255, 255, 255, 0.3); }
+.local-pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #4cc79a; }
+.ai-pill.is-warn { border-color: rgba(255, 200, 120, 0.7); color: #ffd59a; }
+.llm-status { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--line); }
+.llm-status > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.llm-status.is-ok { background: var(--ok-bg); border-color: transparent; color: var(--text); }
+.llm-status.is-ok > .ic { color: var(--ok); }
+.llm-status.is-warn { background: var(--warn-bg); border-color: transparent; }
+.llm-status.is-warn > .ic { color: var(--warn); }
+.cmd { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px 2px 10px; max-width: 100%; }
+.cmd code { font: 500 0.85rem var(--font-mono); overflow-wrap: anywhere; }
+.key-form select, .key-form input { width: 100%; }
+.llm-prog { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font: 500 0.88rem var(--font-mono); margin: 10px 0; }
+.loading .llm-prog { justify-content: center; }
+.llm-meta { color: var(--ai); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.gemma-card { border-left: 4px solid var(--ai); }
+.gemma-card .meter span { background: var(--ai); }
+.gemma-box { background: var(--ai-bg); border-radius: var(--radius-sm); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.gemma-box p { margin: 0; }
+.gemma-box .eyebrow { color: var(--ai); }
+.g-aspects { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.g-aspects blockquote { margin: 4px 0 0; padding: 6px 10px; border-left: 3px solid var(--ai); background: var(--surface); border-radius: 0 6px 6px 0; font-size: 0.9rem; }
+.g-aspects cite { display: block; font-style: normal; font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+@media (max-width: 640px) { .local-pill { display: none; } }

@@ -392,7 +392,7 @@
             ] },
         };
       }
-      return handoff([`Suche in ${src} …`, "Kein maschinenlesbarer Wert gefunden."], `Der Agent konnte das nicht automatisch finden (gesucht: ${src}). Im KI-Modus versucht er es per Websuche.`);
+      return handoff([`Suche in ${src} …`, "Kein maschinenlesbarer Wert gefunden."], `Der Agent konnte das nicht automatisch finden (gesucht: ${src}). Bitte selbst recherchieren oder als Datentabelle hinterlegen.`);
     },
   };
 

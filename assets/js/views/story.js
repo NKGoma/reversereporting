@@ -61,7 +61,7 @@
   function dossier() {
     const s = S();
     const an = s.analysis;
-    const L = [`# Recherche: ${an.type.label} ${an.targetYear}`, "", `_Erstellt mit Reverse Reporting (Prototyp, ${an.engine === "ai" ? "KI-Modus" : "Offline-Engine"}). Demo-Werte sind simuliert und müssen geprüft werden._`, "", "## Story-Entwurf", "", RR.story.toText(RR.story.build(s)), ""];
+    const L = [`# Recherche: ${an.type.label} ${an.targetYear}`, "", `_Erstellt mit Reverse Reporting (Prototyp, ${an.engine === "ai" ? "Gemma, lokal" : "Regel-Engine"}). Demo-Werte sind simuliert und müssen geprüft werden._`, "", "## Story-Entwurf", "", RR.story.toText(RR.story.build(s)), ""];
     for (const [k, c] of Object.entries(RR.ui.CAT)) {
       const items = s.checklist.filter((i) => i.category === k);
       if (!items.length) continue;

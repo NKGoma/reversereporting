@@ -281,7 +281,7 @@
         feats.push({
           id: "m_" + k, label: "Kennzahl: " + name, match: test,
           valueFilter: (x) => (x.noun || (x.money ? "Euro-Beträge" : x.unit === "%" ? "Prozentwerte" : "")) === k,
-          item: { title: `Aktueller Wert: ${name} ({YEAR})`, category: "agent", action: "metric_lookup", metric: true, source: { label: "Offizielle Quelle (im KI-Modus per Websuche)" }, why: `„${name}“ wird in mehreren Artikeln beziffert.` },
+          item: { title: `Aktueller Wert: ${name} ({YEAR})`, category: "agent", action: "metric_lookup", metric: true, source: { label: "Offizielle Quelle oder eigene Datentabelle" }, why: `„${name}“ wird in mehreren Artikeln beziffert.` },
         });
       });
 

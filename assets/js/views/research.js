@@ -65,14 +65,14 @@
     const s = S();
     const an = s.analysis;
     const by = (k) => s.checklist.filter((i) => i.category === k);
-    const ai = an.engine === "ai" && RR.ai.hasKey();
+    const ai = an.engine === "ai";
     return `
     <section class="screen">
       <header class="screen-head">
         <div class="screen-title">
           <p class="eyebrow">Schritt 3 · Recherche</p>
           <h1>${esc(an.type.event || an.type.short)} ${an.targetYear}: Recherche läuft</h1>
-          <p class="lead">${ai ? "Claude sucht im Netz nach aktuellen Werten und belegt jede Angabe mit Quelle." : `Offline-Modus: Werte aus dem Archiv${(an.datasets || []).length ? " und aus amtlichen Daten" : ""} sind echt, Werte für ${an.targetYear} ohne Quelle sind simuliert (Demo) oder Vorschläge zum Bestätigen.`} Klick auf eine Karte öffnet die Details.</p>
+          <p class="lead">${ai ? "Checkliste von Gemma (lokal). Der Agent arbeitet ohne Internet: " : ""}${`Werte aus dem Archiv${(an.datasets || []).length ? " und aus amtlichen Daten" : ""} sind echt, Werte für ${an.targetYear} ohne Quelle sind simuliert (Demo) oder Vorschläge zum Bestätigen.`} Klick auf eine Karte öffnet die Details.</p>
         </div>
       </header>
       ${kpiHtml()}
@@ -162,7 +162,7 @@
     if (item.category === "agent") {
       if (r.log.length) body += `<p class="eyebrow">Protokoll des Agenten</p><ol class="log">${r.log.map((l) => `<li>${esc(l)}</li>`).join("")}</ol>`;
       else body += `<p class="muted">Der Agent hat diesen Punkt noch nicht bearbeitet.</p>`;
-      if (r.result) body += `<p class="eyebrow">Ergebnis${r.result.ai ? " (Claude, Websuche)" : r.result.official ? (r.result.demo ? " (amtliche Daten + Schätzung)" : " (amtliche Daten)") : r.result.demo ? " (simuliert)" : " (aus dem Archiv)"}</p>${resultHtml(item, r.result)}`;
+      if (r.result) body += `<p class="eyebrow">Ergebnis${r.result.official ? (r.result.demo ? " (amtliche Daten + Schätzung)" : " (amtliche Daten)") : r.result.demo ? " (simuliert)" : " (aus dem Archiv)"}</p>${resultHtml(item, r.result)}`;
       if (r.status === "handoff") body += `<div class="handoff"><p>${icon("alert")} ${esc(r.handoff)}</p>${noteBlock(item, r, "Dein Ergebnis")}</div>`;
       if (r.status === "done" && r.result.carried) {
         body += `<div class="confirm-carry"><p><strong>Gilt das auch ${an.targetYear}?</strong> Der Agent hat nur die Angabe aus dem Archiv. Bestätige sie nach dem Prüfen – oder trage den korrigierten Wert ein.</p>
@@ -177,7 +177,7 @@
       const ct = RR.agent.contactFor(item, an);
       const bg = cityBackground(item, an);
       if (bg) body += `<p class="eyebrow">Hintergrund aus amtlichen Daten</p>${bg}`;
-      body += `<div class="contact">${icon("user")}<div><strong>${esc(ct.org)}</strong><span class="muted small">${esc(ct.email)} · ${esc(ct.phone)}</span></div>${an.engine === "ai" ? "" : '<span class="badge badge-demo">Demo-Kontakt</span>'}</div>`;
+      body += `<div class="contact">${icon("user")}<div><strong>${esc(ct.org)}</strong><span class="muted small">${esc(ct.email)} · ${esc(ct.phone)}</span></div><span class="badge badge-demo">Demo-Kontakt</span></div>`;
       if (item.channels.includes("email") && item.email) {
         const locked = !!r.emailState;
         body += `<section class="channel"><h3>${icon("mail")} E-Mail-Entwurf</h3>
@@ -223,21 +223,6 @@
     const r = res(item.id);
     Object.assign(r, { status: "running", log: [], result: null, handoff: null, done: false });
     refresh(item.id);
-    const useAI = an.engine === "ai" && RR.ai.hasKey() && item.action === "ai_research";
-    if (useAI) {
-      r.log.push("Starte Websuche mit Claude …");
-      refresh(item.id);
-      try {
-        const out = await RR.ai.research(item, an, (line) => { r.log.push(line); refresh(item.id); });
-        if (out.handoff) Object.assign(r, { status: "handoff", handoff: out.handoff });
-        else { r.log.push(`Gefunden: ${out.result.summary}`); Object.assign(r, { status: "done", result: out.result }); }
-      } catch (err) {
-        r.log.push("Fehler: " + err.message);
-        Object.assign(r, { status: "handoff", handoff: "Die Websuche ist fehlgeschlagen: " + err.message });
-      }
-      refresh(item.id);
-      return;
-    }
     const out = RR.agent.run(item.action === "ai_research" ? { ...item, action: "lookup" } : item, an);
     const step = Math.max(90, Math.min(260, 2400 / out.log.length));
     for (const line of out.log) {
@@ -258,13 +243,7 @@
     if (!items.length) return;
     s.running = true;
     refresh(null);
-    // KI-Modus: bis zu drei Punkte parallel; offline nacheinander (fürs Auge)
-    if (s.analysis.engine === "ai" && RR.ai.hasKey()) {
-      const queue = items.slice();
-      await Promise.all([0, 1, 2].map(async () => { while (queue.length) await runOne(queue.shift()); }));
-    } else {
-      for (const it of items) await runOne(it);
-    }
+    for (const it of items) await runOne(it);
     s.running = false;
     refresh(null);
   };
