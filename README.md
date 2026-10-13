@@ -22,6 +22,17 @@ Archiv → Blueprint → Recherche → Abgleich → Story → (Blueprint fürs n
 
 Emails and phone calls are **always simulated**. Nothing leaves the browser except the optional API requests.
 
+## Themenarchiv: analyse a whole archive
+Start screen → **"Ganzes Archiv analysieren"**. Upload every article about a recurring event, not just one story type. Upload as many files, a **ZIP**, or a **table export** (CSV/JSON with columns such as `datum`, `titel`, `text`). The tool answers three questions:
+
+1. **Which stories are written every time?** Articles are matched to known story types: for the Oktoberfest, e.g. poster, tent allocation, beer prices, build-up, security, run & tapping, parade, weather, Wiesn hit, mid-festival review, lost and found, medical service, police review, closing review; for elections, e.g. candidates, polls, voting advice, postal voting, election night, results, turnout, coalition. Articles that fit no known type are grouped by text similarity, so **new recurring stories are discovered** too.
+2. **When?** Each article's publication date is read from metadata, a "Stand: …" line, the text or the file name. It's placed relative to the event: the Wiesn start is computed (verified against the city's festival durations 1985–2025), and election day is detected in the text and can be edited. The **story calendar** shows the typical day and spread per type.
+3. **What is always in them?** The existing pattern recognition runs per story type. Aspects present in most articles become the core aspects, plus typical terms.
+
+From that the tool builds a **plan for the next edition** in real dates (exportable as `.ics`). For each story type, "Blueprint" opens the usual single-story flow with exactly those articles.
+
+Demo: "Demo: Oktoberfest-Archiv" (44 fictional articles, 2023–2025) and "Demo: Landtagswahlen" (2018 and 2023).
+
 ## Fact base (real data)
 The agent uses **real data tables** as its source wherever they answer a question. These results carry a source badge and link instead of "Demo".
 

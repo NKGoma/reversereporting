@@ -265,5 +265,22 @@ Wenn du keine verlässliche Quelle findest oder die Werte für das Zieljahr noch
     };
   }
 
-  RR.ai = { setKey, hasKey, remembered, analyze, research, MODEL };
+  /* ---------- 3. Entdeckte Story-Typen benennen ---------- */
+  async function nameClusters(clusters) {
+    const { Anthropic, c } = await client();
+    const schema = { type: "object", additionalProperties: false, required: ["clusters"], properties: { clusters: { type: "array", items: { type: "object", additionalProperties: false, required: ["id", "label"], properties: { id: { type: "string" }, label: { type: "string" } } } } } };
+    try {
+      const resp = await c.beta.messages.create(base({
+        max_tokens: 2000,
+        output_config: { effort: "low", format: { type: "json_schema", schema } },
+        system: "Du benennst Gruppen von Nachrichtenartikeln, die jedes Jahr wiederkehren. Gib jeder Gruppe einen kurzen redaktionellen Namen (2–4 Wörter, Deutsch), z. B. „Tischreservierungen“ oder „Wiesn-Plakat“.",
+        messages: [{ role: "user", content: clusters.map((k) => `Gruppe ${k.id}:\n- ${k.titles.join("\n- ")}`).join("\n\n") }],
+      }));
+      return parseJson(resp).clusters || [];
+    } catch (err) {
+      throw new Error(explain(err, Anthropic));
+    }
+  }
+
+  RR.ai = { nameClusters, setKey, hasKey, remembered, analyze, research, MODEL };
 })();

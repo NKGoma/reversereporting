@@ -15,7 +15,7 @@
   const QUOTE_RE = /[„"»]([^„"“”«»]{12,400})[“"«”]/g;
   const SPEAKER_AFTER = /^[,\s]*(?:sagt|sagte|so|erklärt|erklärte|meint|meinte|betont|betonte|findet|kritisiert|kritisierte)\s+((?:[A-ZÄÖÜ][\wäöüß.\-]*\s?){1,4})/;
   const NUM_RE = /(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?(?:\s*(Milliarden|Mrd\.?|Millionen|Mio\.?|Tausend|Prozentpunkte|Prozent|%|Euro|€))?(?:\s*(Euro|€))?(?:\s+([A-ZÄÖÜ][a-zäöüß]{3,}))?/g;
-  const MONTHS = /^(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Uhr|Jahr|Jahre|Jahren|Prozent)$/;
+  const MONTHS = /^(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Uhr|Jahr|Jahre|Jahren|Prozent|Insgesamt|Zudem|Dabei|Damit|Auch|Bislang|Bisher|Außerdem|Davon|Darunter|Jetzt|Heute)$/;
 
   const INSTITUTIONS = [
     ["Polizei", /polizei|einsatzkräfte|beamt(?:e|innen)/i],
@@ -287,7 +287,8 @@
 
     // 2. Institutionen → Stellungnahme
     const inst = {};
-    for (const p of per) for (const m of p.text.matchAll(INSTITUTION_RE)) (inst[m[1]] = inst[m[1]] || new Set()).add(p.id);
+    const NOT_INST = /^(Insgesamt|Gesamt|Samt|Beamt\w*|Amt)$/; // "-amt" ohne Behörde
+    for (const p of per) for (const m of p.text.matchAll(INSTITUTION_RE)) if (!NOT_INST.test(m[1])) (inst[m[1]] = inst[m[1]] || new Set()).add(p.id);
     Object.entries(inst)
       .filter(([, set]) => set.size >= minHits)
       .sort((a, b) => b[1].size - a[1].size)

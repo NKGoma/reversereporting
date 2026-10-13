@@ -26,12 +26,51 @@
 
   function htmlToText(html) {
     const doc = new DOMParser().parseFromString(html, "text/html");
+    // Veröffentlichungsdatum aus Metadaten, bevor Skripte (JSON-LD) entfernt werden
+    const metaDate =
+      doc.querySelector('meta[property="article:published_time"], meta[name="date"], meta[name="pubdate"], meta[itemprop="datePublished"]')?.getAttribute("content") ||
+      (html.match(/"datePublished"\s*:\s*"([^"]+)"/) || [])[1] ||
+      doc.querySelector("time[datetime]")?.getAttribute("datetime") || "";
     doc.querySelectorAll("script, style, nav, footer, header, noscript, aside, form").forEach((n) => n.remove());
     const title = (doc.querySelector("h1")?.textContent || doc.title || "").trim();
     const root = doc.querySelector("article") || doc.body;
     const blocks = [...root.querySelectorAll("h1, h2, h3, p, li")].map((n) => n.textContent.trim()).filter(Boolean);
     const text = blocks.length ? blocks.join("\n") : (root.textContent || "");
-    return { title, text: text.replace(/\n{3,}/g, "\n\n").trim() };
+    return { title, text: text.replace(/\n{3,}/g, "\n\n").trim(), date: parseDate(metaDate) };
+  }
+
+  /* ---------- Veröffentlichungsdatum ---------- */
+  const MONTHS = { januar: 1, jänner: 1, februar: 2, märz: 3, april: 4, mai: 5, juni: 6, juli: 7, august: 8, september: 9, oktober: 10, november: 11, dezember: 12 };
+  const iso = (y, m, d) => {
+    y = Number(y); m = Number(m); d = Number(d);
+    if (y < 100) y += 2000;
+    if (!(y >= 1950 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= 31)) return null;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  };
+  // einzelner Datumswert (ISO, 20.09.2025, 20. September 2025)
+  function parseDate(v) {
+    if (!v) return null;
+    v = String(v).trim();
+    let m = v.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return iso(m[1], m[2], m[3]);
+    m = v.match(/(\d{1,2})\.\s?(\d{1,2})\.\s?(\d{2,4})/);
+    if (m) return iso(m[3], m[2], m[1]);
+    m = v.match(/(\d{1,2})\.\s?([A-Za-zäÄ]+)\s+(\d{4})/);
+    if (m && MONTHS[m[2].toLowerCase()]) return iso(m[3], MONTHS[m[2].toLowerCase()], m[1]);
+    if (/^\d{10,13}$/.test(v)) { const d = new Date(Number(v) * (v.length === 10 ? 1000 : 1)); return iso(d.getFullYear(), d.getMonth() + 1, d.getDate()); }
+    return null;
+  }
+  // im Text: "Stand: 20.09.2025", "Veröffentlicht am …", "Sendung vom …", sonst erstes Datum oben im Text; zuletzt der Dateiname
+  function detectDate(text, name) {
+    const marked = text.match(/\b(?:stand\s*:|veröffentlicht(?:\s+am)?\s*:?|aktualisiert(?:\s+am)?\s*:?|erstellt(?:\s+am)?\s*:|sendung vom|datum\s*:)\s*(?:am\s*)?([^\n]{6,40})/i);
+    const fromMarked = marked && parseDate(marked[1]);
+    if (fromMarked) return { date: fromMarked, how: "im Text (" + marked[0].split(/[:\s]/)[0] + ")" };
+    const head = text.split("\n").slice(0, 4).join(" ");
+    const fromHead = parseDate((head.match(/\b\d{1,2}\.\s?\d{1,2}\.\s?\d{4}\b|\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}\.\s?(?:Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\s+\d{4}\b/) || [])[0]);
+    if (fromHead) return { date: fromHead, how: "Textanfang" };
+    const fn = name && (name.match(/(\d{4})[-_.]?(\d{2})[-_.]?(\d{2})/) || name.match(/(\d{2})\.(\d{2})\.(\d{4})/));
+    if (fn) { const d = fn[1].length === 4 ? iso(fn[1], fn[2], fn[3]) : iso(fn[3], fn[2], fn[1]); if (d) return { date: d, how: "Dateiname" }; }
+    return { date: null, how: "" };
   }
 
   async function docxToText(buf) {
@@ -116,13 +155,18 @@
     return best ? Number(best[0]) : null;
   }
 
-  function makeArticle(text, name, titleHint, extra) {
-    const clean = stripBoilerplate(unglue(text.replace(/\r\n?/g, "\n").replace(/[ \t]+/g, " "))).trim();
+  function makeArticle(text, name, titleHint, extra = {}) {
+    const raw = text.replace(/\r\n?/g, "\n");
+    // Datum vor dem Säubern suchen (die "Stand:"-Zeile kann im Abbinder stehen)
+    const found = extra.date ? { date: extra.date, how: extra.dateHow || "Tabelle" } : detectDate(raw, name);
+    const clean = stripBoilerplate(unglue(raw.replace(/[ \t]+/g, " "))).trim();
     return {
       id: "a" + Math.random().toString(36).slice(2, 8),
       name: name || "Eingefügter Text",
       title: titleHint || guessTitle(clean, name || "Artikel"),
-      year: guessYear(clean),
+      year: found.date ? Number(found.date.slice(0, 4)) : guessYear(clean),
+      date: found.date,
+      dateHow: found.how,
       words: clean.split(/\s+/).filter(Boolean).length,
       text: clean,
       ...extra,
@@ -139,21 +183,92 @@
       .map((t, i, arr) => makeArticle(t, arr.length > 1 ? `Eingefügt (${i + 1})` : "Eingefügter Text"));
   }
 
-  async function readFile(file) {
-    const name = file.name;
+  /* ---------- Tabellen-Export (CSV/JSON mit Textspalte) ---------- */
+  // CSV nach RFC 4180: Anführungszeichen, Zeilenumbrüche in Feldern
+  function parseCsvRows(text) {
+    const first = text.split("\n")[0];
+    const sep = (first.match(/;/g) || []).length > (first.match(/,/g) || []).length ? ";" : first.includes("\t") ? "\t" : ",";
+    const rows = [];
+    let row = [], cell = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (c === '"') q = false;
+        else cell += c;
+      } else if (c === '"') q = true;
+      else if (c === sep) { row.push(cell); cell = ""; }
+      else if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; }
+      else if (c !== "\r") cell += c;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter((r) => r.some((x) => x.trim()));
+  }
+
+  const COL = {
+    date: /^(datum|date|published|publishdate|pubdate|publication.?date|veröffentlicht|erstellt|created|stand)/i,
+    title: /^(titel|title|headline|überschrift|ueberschrift|schlagzeile)/i,
+    teaser: /^(teaser|lead|vorspann|description|beschreibung|kurztext)/i,
+    text: /^(text|body|inhalt|content|artikel|fulltext|volltext|artikeltext)/i,
+    url: /^(url|link|permalink)/i,
+  };
+  function recordsToArticles(records, name) {
+    if (!records.length) return [];
+    const keys = Object.keys(records[0]);
+    const pick = (re) => keys.find((k) => re.test(k.trim()));
+    const kd = pick(COL.date), kt = pick(COL.title), kx = pick(COL.text), kl = pick(COL.teaser), ku = pick(COL.url);
+    if (!kx && !kl) throw new Error("Die Tabelle hat keine Textspalte (z. B. „text“ oder „inhalt“).");
+    return records.map((r, i) => {
+      const body = [kt && r[kt], kl && r[kl], kx && r[kx]].filter(Boolean).join("\n");
+      const d = kd && parseDate(r[kd]);
+      return body.trim().length >= 40 ? makeArticle(body, `${name} · Zeile ${i + 1}`, kt ? String(r[kt]).trim() : null, { date: d, dateHow: d ? "Tabelle" : "", url: ku ? r[ku] : "" }) : null;
+    }).filter(Boolean);
+  }
+  function tableToArticles(text, name) {
+    if (/\.json$/i.test(name) || /^\s*[[{]/.test(text)) {
+      const j = JSON.parse(text);
+      const list = Array.isArray(j) ? j : j.articles || j.items || j.data || j.results || [];
+      return recordsToArticles(list, name);
+    }
+    const rows = parseCsvRows(text);
+    const head = rows[0].map((h) => h.trim());
+    return recordsToArticles(rows.slice(1).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i] || ""]))), name);
+  }
+
+  /* ---------- ZIP-Archiv ---------- */
+  async function zipToArticles(buf, onProgress) {
+    await loadScript(LIBS.jszip);
+    const zip = await window.JSZip.loadAsync(buf);
+    const entries = Object.values(zip.files).filter((f) => !f.dir && !/(^|\/)(__MACOSX|\.)/.test(f.name) && /\.(txt|md|html?|docx|pdf|csv|json)$/i.test(f.name));
+    const out = [];
+    for (let i = 0; i < entries.length; i++) {
+      const f = entries[i];
+      try { out.push(...(await readBuffer(f.name.split("/").pop(), await f.async("arraybuffer")))); } catch (e) { /* einzelne Datei überspringen */ }
+      if (onProgress) onProgress(i + 1, entries.length);
+    }
+    return out;
+  }
+
+  async function readFile(file, onProgress) {
+    return readBuffer(file.name, await file.arrayBuffer(), onProgress);
+  }
+
+  async function readBuffer(name, buf, onProgress) {
     const lower = name.toLowerCase();
-    if (lower.endsWith(".docx")) return [makeArticle(await docxToText(await file.arrayBuffer()), name)];
-    if (lower.endsWith(".pdf")) return [makeArticle(await pdfToText(await file.arrayBuffer()), name)];
+    if (lower.endsWith(".zip")) return zipToArticles(buf, onProgress);
+    if (lower.endsWith(".docx")) return [makeArticle(await docxToText(buf), name)];
+    if (lower.endsWith(".pdf")) return [makeArticle(await pdfToText(buf), name)];
     if (lower.endsWith(".doc")) throw new Error("Altes .doc-Format – bitte als .docx oder .pdf speichern");
-    const text = decodeText(await file.arrayBuffer());
+    const text = decodeText(buf);
+    if (/\.(csv|json|tsv)$/.test(lower)) return tableToArticles(text, name);
     if (/\.html?$/.test(lower) || /^\s*<(!doctype|html)/i.test(text)) {
       const r = htmlToText(text);
-      return [makeArticle(r.text, name, r.title)];
+      return [makeArticle(r.text, name, r.title, r.date ? { date: r.date, dateHow: "HTML-Metadaten" } : {})];
     }
     // .txt/.md können ebenfalls mehrere Artikel mit "---" enthalten
     const parts = fromPaste(text);
     return parts.length > 1 ? parts.map((p, i) => ({ ...p, name: `${name} (${i + 1})` })) : [makeArticle(text, name)];
   }
 
-  RR.ingest = { readFile, makeArticle, fromPaste, decodeText, stripBoilerplate };
+  RR.ingest = { readFile, readBuffer, makeArticle, fromPaste, decodeText, stripBoilerplate, detectDate, parseDate, tableToArticles };
 })();

@@ -166,6 +166,7 @@
 
   function reachable(id) {
     if (id === "home") return true;
+    if (id === "corpus") return !!state.corpus;
     if (id === "archive") return !!state.analysis && state.articles.length > 0;
     return state.checklist.length > 0;
   }
@@ -198,7 +199,7 @@
       return `<li><button type="button" class="rail-step ${cls}" data-act="go" data-to="${sc.id}" ${can ? "" : "disabled"} ${sc.id === state.screen ? 'aria-current="step"' : ""}>
         <span class="rail-no">${i + 1}</span><span class="rail-text"><span class="rail-label">${sc.label}</span>${st ? `<span class="rail-sub">${esc(st)}</span>` : ""}</span></button></li>`;
     }).join("")}</ol>`;
-    document.getElementById("rail").hidden = state.screen === "home" && !state.analysis;
+    document.getElementById("rail").hidden = (state.screen === "home" && !state.analysis) || state.screen === "corpus";
   }
 
   function renderPill() {
@@ -233,6 +234,7 @@
     if (!state.drawer) { d.hidden = true; scrim.hidden = true; d.innerHTML = ""; document.body.classList.remove("has-drawer"); return; }
     const html = state.drawer.kind === "item" ? RR.drawerItem(state.drawer.id)
       : state.drawer.kind === "settings" ? RR.drawerSettings()
+      : state.drawer.kind === "ctype" ? RR.drawerCorpusType(state.drawer.id)
       : state.drawer.kind === "export" ? drawerExport(state.drawer) : "";
     if (!html) { closeDrawer(); return; }
     d.innerHTML = html;

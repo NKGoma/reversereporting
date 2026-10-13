@@ -71,6 +71,8 @@
         </article>
       </div>
 
+      ${RR.corpusEntryHtml ? RR.corpusEntryHtml() : ""}
+
       <section class="library datasets">
         <div class="section-head">
           <h2>Datenquellen</h2>
@@ -112,6 +114,7 @@
   };
 
   RR.after.home = function () {
+    if (RR.bindCorpusEntry) RR.bindCorpusEntry();
     const dz = document.getElementById("dropzone");
     if (!dz) return;
     document.getElementById("file-input").addEventListener("change", (e) => { addFiles([...e.target.files]); e.target.value = ""; });
@@ -139,6 +142,7 @@
 
   function resetWork() {
     const s = S();
+    s.fromCorpus = null;
     s.analysis = null;
     s.checklist = [];
     s.results = {};

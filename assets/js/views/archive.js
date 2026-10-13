@@ -126,6 +126,7 @@
     <section class="screen">
       <header class="screen-head">
         <div class="screen-title">
+          ${s.fromCorpus ? `<button type="button" class="back-link" data-act="go" data-to="corpus">← Themenarchiv · ${esc(s.fromCorpus.label)}</button>` : ""}
           <p class="eyebrow">Schritt 1 · Archiv</p>
           <h1>Was jede Ausgabe enthält</h1>
           <p class="lead">${recurring} von ${an.patterns.length} Bausteinen kommen in mindestens ${an.threshold} der ${arts.length} Artikel vor. Markiert im Text: die Belegstellen.</p>
