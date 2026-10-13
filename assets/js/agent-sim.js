@@ -55,13 +55,32 @@
   const patternOf = (item, analysis) => analysis.patterns.find((p) => p.id === item.patternId) || { values: [], unit: "" };
 
   /* ---------- Zeltpreise ---------- */
+  // Demo-Preise passend zum Preisniveau skalieren: amtlicher Ø des Vorjahres,
+  // sonst jüngster Archivwert (+3,5 % pro fehlendem Jahr)
+  function demoScale(an) {
+    const tents = RR.DEMO.tents;
+    const avgPrev = tents.reduce((s, t) => s + t.prev, 0) / tents.length;
+    const maxPrev = Math.max(...tents.map((t) => t.prev));
+    const city = cityOf(an);
+    const T = an.targetYear;
+    const grow = (n) => Math.pow(1.035, Math.max(0, n));
+    if (city && F().value(city, "bier_preis", T - 1) != null) return F().value(city, "bier_preis", T - 1) / avgPrev;
+    const last = an.timeline && an.timeline.points.length ? an.timeline.points[an.timeline.points.length - 1] : null;
+    if (last) return (last.max / maxPrev) * grow(T - 1 - last.year);
+    if (city) { const l = F().latest(city, "bier_preis"); return (l.value / avgPrev) * grow(T - 1 - l.year); }
+    return 1;
+  }
+
   function tentRows(analysis) {
     const T = analysis.targetYear;
     if (analysis.wiesn) {
+      const f = demoScale(analysis);
+      const r05 = (x) => Math.round(x * f * 20) / 20;
       return RR.DEMO.tents.map((t) => {
         const art = (analysis.tentPrices || []).filter((p) => p.tent === t.name && p.year === T - 1).pop();
-        const prev = art ? art.value : t.prev;
-        return { tent: t.name, curr: t.curr, prev, prevFrom: art ? `Artikel ${art.year}` : "Demo-Wert", delta: pct(prev, t.curr),
+        const prev = art ? art.value : r05(t.prev);
+        const curr = Math.max(r05(t.curr), prev);
+        return { tent: t.name, curr, prev, prevFrom: art ? `Artikel ${art.year}` : "Demo-Wert", delta: pct(prev, curr),
           source: t.url ? { label: t.url.replace(/^https?:\/\/(www\.)?/, ""), url: t.url } : RR.DEMO.citySource, verified: false };
       });
     }
@@ -72,6 +91,22 @@
       const curr = Math.round(p.value * (1.02 + 0.03 * hash(p.tent)) * 10) / 10;
       return { tent: p.tent, curr, prev: p.value, prevFrom: `Artikel ${p.year || "?"}`, delta: pct(p.value, curr), source: { label: "Website des Festwirts" }, verified: false };
     });
+  }
+
+  // Kernangaben aus Archivsätzen: Uhrzeiten, Daten, Beträge, Personen mit Rolle, Orte
+  const MONTH = "Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember";
+  function keyFacts(texts) {
+    const out = [];
+    const add = (x) => { x = x.replace(/\s+/g, " ").trim(); if (x && !out.some((o) => o.toLowerCase() === x.toLowerCase())) out.push(x); };
+    for (const t of texts) {
+      (t.match(/\b\d{1,2}(?::\d{2})?\s?Uhr\b/g) || []).forEach(add);
+      (t.match(new RegExp(`\\b\\d{1,2}\\.\\s?(?:${MONTH})\\b`, "g")) || []).forEach(add);
+      (t.match(/\b(?:Ober)?[Bb]ürgermeister(?:in)?\s+[A-ZÄÖÜ][a-zäöüß]+\s+[A-ZÄÖÜ][\wäöüß-]+|\bMinisterpräsident(?:in)?\s+[A-ZÄÖÜ][a-zäöüß]+\s+[A-ZÄÖÜ][\wäöüß-]+/g) || []).forEach(add);
+      (t.match(/\b(?:Haupteingang|Bavaria|Theresienwiese|[A-ZÄÖÜ][\wäöüß]+-(?:Festzelt|Zelt))\b/g) || []).forEach(add);
+      RR.text.numbers(t).filter((n) => n.money || n.noun).forEach((n) => add(n.raw));
+      if (/wolkenlos|sonnig|regen|gewitter|warm|kalt/i.test(t)) add((t.match(/wolkenlos|sonnig|regnerisch|regen|gewitter|warm|kalt/i) || [""])[0].toLowerCase());
+    }
+    return out.slice(0, 5);
   }
 
   const handoff = (log, text) => ({ log: [...log, "→ Übergabe an Journalist:in"], handoff: text });
@@ -348,7 +383,8 @@
         const cut = (t, n) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
         return {
           log: [`Suche in ${src} …`, `Für ${an.targetYear} noch nichts veröffentlicht (Offline-Modus).`, `Übernehme Angaben aus ${latest} als Vorschlag.`],
-          result: { kind: "facts", carried: true, official: extra.length > 0, sources: 1 + extra.length, summary: `Vorschlag aus ${latest}: ${cut(last[0].text, 90)}`,
+          result: { kind: "facts", carried: true, official: extra.length > 0, sources: 1 + extra.length,
+            summary: ((k) => `Vorschlag aus ${latest}: ${k.length ? k.join(" · ") : cut(last[0].text, 90)}`)(keyFacts(last.map((e) => e.text))),
             facts: [
               ...last.slice(0, 3).map((e) => ({ label: `Archiv ${latest}`, value: `„${cut(e.text, 220)}“`, source: { label: "Archiv: " + e.title } })),
               ...extra,

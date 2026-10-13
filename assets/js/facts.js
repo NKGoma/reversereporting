@@ -111,7 +111,7 @@
     const t = parseCsv(text);
     const columns = {};
     t.head.forEach((h) => {
-      const words = h.toLowerCase().split(/[_\s-]+/).filter((w) => w.length >= 4);
+      const words = h.toLowerCase().split(/[_\s-]+/).filter((w) => w.length >= 4).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
       const dec = t.rows.some((r) => r[h] != null && !Number.isInteger(r[h]));
       columns[h] = { label: h.replace(/_/g, " "), unit: "", dec, match: words.length ? new RegExp(words.join("|"), "i") : /^$/ };
     });

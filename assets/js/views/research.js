@@ -13,6 +13,7 @@
     const r = res(item.id);
     if (item.category === "agent") {
       if (r.status === "running") return { key: "run", label: "sucht …", preview: r.log[r.log.length - 1] || "startet" };
+      if (r.status === "done" && r.result.carried && r.confirmed) return { key: "done", label: "von dir bestätigt", preview: r.note || r.result.summary.replace(/^Vorschlag aus \d{4}: /, "") };
       if (r.status === "done" && r.result.carried) return { key: "wait", label: "Vorschlag aus Archiv – bestätigen", preview: r.result.summary };
       if (r.status === "done") return { key: "done", label: "gefunden – prüfen", preview: r.result.summary };
       if (r.status === "handoff") return r.done ? { key: "done", label: "von dir erledigt", preview: r.note || "erledigt" } : { key: "human", label: "an dich übergeben", preview: "Agent hat nichts Verlässliches gefunden" };
@@ -71,7 +72,7 @@
         <div class="screen-title">
           <p class="eyebrow">Schritt 3 · Recherche</p>
           <h1>${esc(an.type.event || an.type.short)} ${an.targetYear}: Recherche läuft</h1>
-          <p class="lead">${ai ? "Claude sucht im Netz nach aktuellen Werten und belegt jede Angabe mit Quelle." : "Offline-Simulation: Archivwerte sind echt, aktuelle Werte sind Demo-Daten."} Klick auf eine Karte öffnet die Details.</p>
+          <p class="lead">${ai ? "Claude sucht im Netz nach aktuellen Werten und belegt jede Angabe mit Quelle." : `Offline-Modus: Werte aus dem Archiv${(an.datasets || []).length ? " und aus amtlichen Daten" : ""} sind echt, Werte für ${an.targetYear} ohne Quelle sind simuliert (Demo) oder Vorschläge zum Bestätigen.`} Klick auf eine Karte öffnet die Details.</p>
         </div>
       </header>
       ${kpiHtml()}
@@ -163,6 +164,12 @@
       else body += `<p class="muted">Der Agent hat diesen Punkt noch nicht bearbeitet.</p>`;
       if (r.result) body += `<p class="eyebrow">Ergebnis${r.result.ai ? " (Claude, Websuche)" : r.result.official ? (r.result.demo ? " (amtliche Daten + Schätzung)" : " (amtliche Daten)") : r.result.demo ? " (simuliert)" : " (aus dem Archiv)"}</p>${resultHtml(item, r.result)}`;
       if (r.status === "handoff") body += `<div class="handoff"><p>${icon("alert")} ${esc(r.handoff)}</p>${noteBlock(item, r, "Dein Ergebnis")}</div>`;
+      if (r.status === "done" && r.result.carried) {
+        body += `<div class="confirm-carry"><p><strong>Gilt das auch ${an.targetYear}?</strong> Der Agent hat nur die Angabe aus dem Archiv. Bestätige sie nach dem Prüfen – oder trage den korrigierten Wert ein.</p>
+          <label class="label" for="note-${item.id}">Korrektur oder Notiz (optional)</label>
+          <textarea id="note-${item.id}" rows="2" data-act="note" data-id="${item.id}" placeholder="z. B. Einlass ${an.targetYear}: 9 Uhr, laut oktoberfest.de">${esc(r.note || "")}</textarea>
+          <label class="check"><input type="checkbox" data-act="confirm-carried" data-id="${item.id}" ${r.confirmed ? "checked" : ""}> Für ${an.targetYear} geprüft und bestätigt</label></div>`;
+      }
       if (r.status === "done" || r.status === "handoff") body += `<button class="btn btn-ghost btn-sm" data-act="rerun" data-id="${id}" type="button">${icon("refresh")} Erneut versuchen</button>`;
     }
 
@@ -298,6 +305,7 @@
     A().save();
     A().renderRail();
   };
+  RR.onChange["confirm-carried"] = (el) => { res(el.dataset.id).confirmed = el.checked; refresh(el.dataset.id); };
   RR.onChange["human-done"] = (el) => { res(el.dataset.id).done = el.checked; refresh(el.dataset.id); };
   RR.onInput.note = (el) => { res(el.dataset.id).note = el.value; A().save(); };
   RR.onInput["email-field"] = (el) => { find(el.dataset.id).email[el.dataset.field] = el.value; A().save(); };

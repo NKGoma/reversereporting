@@ -38,6 +38,9 @@
       const r = res(i);
       // Vorschläge aus dem Archiv sind noch keine Fakten – erscheinen als Lücke
       if (i.category === "agent" && r.status === "done" && r.result && !r.result.carried) return { kind: "agent", r };
+      // bestätigter Vorschlag: Notiz der Journalistin oder die Kernangaben
+      if (i.category === "agent" && r.status === "done" && r.result && r.result.carried && r.confirmed)
+        return { kind: "note", text: r.note ? r.note.trim() : `${i.title.replace(/\s*\d{4}/, "")}: ${r.result.summary.replace(/^Vorschlag aus \d{4}: /, "").replace(/^Letzter amtlicher Wert/, "Zuletzt")}.` };
       if (r.reply) return { kind: "text", text: replyCore(r.reply), org: RR.agent.contactFor(i, an).org.split(" – ")[0] };
       if (r.transcript) return { kind: "quote", text: transcriptQuote(r.transcript) };
       if (r.done && r.note) return { kind: "note", text: r.note.trim() };

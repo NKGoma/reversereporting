@@ -517,3 +517,5 @@ tr.fc-warn td { background: var(--warn-bg); }
 tr.fc-warn .fc-note { color: var(--warn); }
 .fc-more { margin-top: 10px; }
 .fc-more summary { cursor: pointer; color: var(--blue); font-weight: 600; font-size: 0.9rem; margin-bottom: 8px; }
+.confirm-carry { background: var(--approve-bg); border: 1px solid var(--approve-line); border-radius: 8px; padding: 12px; }
+.confirm-carry p { margin: 0 0 4px; font-size: 0.92rem; }

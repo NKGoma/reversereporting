@@ -100,7 +100,8 @@
 
   function isDone(item) {
     const r = state.results[item.id] || {};
-    if (item.category === "agent") return r.status === "done" || (r.status === "handoff" && !!r.done);
+    // Vorschläge aus dem Archiv zählen erst, wenn sie bestätigt sind
+    if (item.category === "agent") return (r.status === "done" && (!r.result || !r.result.carried || !!r.confirmed)) || (r.status === "handoff" && !!r.done);
     if (item.category === "approve") return !!(r.reply || r.transcript);
     return !!r.done;
   }
@@ -109,7 +110,17 @@
     const L = state.checklist;
     const res = (i) => state.results[i.id] || {};
     const done = L.filter(isDone).length;
-    const sources = L.reduce((s, i) => s + ((res(i).result && res(i).result.sources) || 0), 0);
+    // verschiedene Quellen zählen (eine Datentabelle = eine Quelle, egal wie viele Jahrgänge)
+    const seen = new Set();
+    L.forEach((i) => {
+      const R = res(i).result;
+      if (!R) return;
+      [...(R.facts || []), ...(R.rows || []), ...(R.series || [])].forEach((f) => {
+        const sl = f.source && (f.source.url || f.source.label);
+        if (sl && !/^berechnet|^Demo|^Zeltpreise/.test(sl)) seen.add(sl.replace(/,\s*\d{4}$/, ""));
+      });
+    });
+    const sources = seen.size;
     const approvals = L.filter((i) => i.category === "approve" && !isDone(i)).length;
     const mine = L.filter((i) => (i.category === "human" || (i.category === "agent" && res(i).status === "handoff")) && !isDone(i)).length;
     // grobe Schätzung der gesparten Recherchezeit (Minuten)
@@ -229,8 +240,10 @@
     scrim.hidden = false;
     document.body.classList.add("has-drawer");
   }
+  let returnFocus = null;
   function openDrawer(spec) {
     const wasOpen = !!state.drawer;
+    if (!wasOpen) returnFocus = document.activeElement;
     state.drawer = spec;
     renderDrawer();
     if (!wasOpen) { const f = document.querySelector("#drawer .drawer-close"); f && f.focus({ preventScroll: true }); }
@@ -238,6 +251,11 @@
   function closeDrawer() {
     state.drawer = null;
     renderDrawer();
+    // Fokus zurück auf die Karte, die den Drawer geöffnet hat (falls noch vorhanden)
+    const id = returnFocus && returnFocus.dataset && returnFocus.dataset.id;
+    const back = id ? document.querySelector(`[data-card="${id}"]`) : returnFocus;
+    if (back && back.isConnected) back.focus({ preventScroll: true });
+    returnFocus = null;
   }
   // nur den Drawer neu zeichnen, wenn er gerade diesen Punkt zeigt
   function refreshItem(id) {

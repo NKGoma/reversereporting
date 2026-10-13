@@ -67,7 +67,7 @@
     const offLast = offPts[offPts.length - 1];
     return `<figure class="card chart">
       <figcaption><h2>${esc(off ? off.label : tl.label + " im Archiv")}</h2>
-        <p class="muted small">${off ? `Linie: amtlicher Durchschnitt (${esc(off.source)}). ` : ""}${pts.length ? "Punkte: Werte aus den Artikeln (Spanne = günstigster bis höchster Wert)." : ""}</p></figcaption>
+        <p class="muted small">${off ? `Linie: amtlicher Durchschnitt (${esc(off.source)}). ` : ""}${gaps(offPts)}${pts.length ? "Punkte: Werte aus den Artikeln (Spanne = günstigster bis höchster Wert)." : ""}</p></figcaption>
       <div class="chart-wrap"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(off ? off.label : tl.label)} nach Jahren">
         ${ticks.map((t) => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(t)}" y2="${Y(t)}"/><text class="tick" x="${L - 8}" y="${Y(t) + 4}" text-anchor="end">${esc(fmt(t))}</text>`).join("")}
         ${offPts.length > 1 ? `<path class="official" d="${path(offPts, "value")}"/>${offPts.map((p) => `<circle class="odot" cx="${X(p.year)}" cy="${Y(p.value)}" r="2.6"><title>${p.year}: Ø ${esc(fmt(p.value))}</title></circle>`).join("")}
@@ -81,6 +81,13 @@
       </svg></div>
       ${off ? `<div class="legend"><span class="lg-off"></span>Ø laut ${esc(off.publisher)}${pts.length ? `<span class="lg-arch"></span>Höchstwerte aus den Artikeln` : ""}</div>` : ""}
     </figure>`;
+  }
+
+  // Jahre ohne Daten benennen (z. B. 2020/21: Oktoberfest ausgefallen)
+  function gaps(pts) {
+    const g = [];
+    pts.forEach((p, i) => { if (i && p.year - pts[i - 1].year > 1) g.push(pts[i - 1].year + 1 === p.year - 1 ? `${p.year - 1}` : `${pts[i - 1].year + 1}–${p.year - 1}`); });
+    return g.length ? `Keine Daten für ${g.join(", ")} (kein Fest). ` : "";
   }
 
   // Band mit den verknüpften Datentabellen
