@@ -34,11 +34,15 @@
     r.confirm = null;
   });
 
+  let saveWarned = false;
   function save() {
     try {
       const { running, drawer, ...rest } = state;
       localStorage.setItem(STORE, JSON.stringify(rest));
-    } catch (e) { /* Speicher voll oder gesperrt – App läuft trotzdem */ }
+    } catch (e) {
+      // Speicher voll oder gesperrt – App läuft weiter, aber einmal Bescheid sagen
+      if (!saveWarned) { saveWarned = true; RR.ui.toast("Zwischenstand konnte nicht gespeichert werden (Browser-Speicher voll). Nach dem Neuladen fehlt er – hochgeladene Archive bleiben erhalten.", "warn"); }
+    }
   }
 
   RR.app = {

@@ -603,3 +603,7 @@ tr.fc-warn .fc-note { color: var(--warn); }
 .g-aspects blockquote { margin: 4px 0 0; padding: 6px 10px; border-left: 3px solid var(--ai); background: var(--surface); border-radius: 0 6px 6px 0; font-size: 0.9rem; }
 .g-aspects cite { display: block; font-style: normal; font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 @media (max-width: 640px) { .local-pill { display: none; } }
+.llm-test { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.llm-test-res { display: flex; gap: 8px; align-items: flex-start; margin: 0; }
+.llm-test-res > .ic { color: var(--ok); margin-top: 2px; flex-shrink: 0; }
+.llm-test-res.is-warn > .ic { color: var(--warn); }

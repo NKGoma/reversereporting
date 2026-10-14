@@ -17,6 +17,40 @@
     return `<div class="llm-status is-warn">${icon("alert")}<div><strong>Ollama läuft nicht</strong><span>Am einfachsten <code>start.command</code> doppelklicken – oder im Terminal:</span>${cmd("ollama serve")}<span class="muted small">${esc(st.error || "")}</span></div></div>`;
   }
 
+  // Kurztest: kleine strukturierte Anfrage ohne Cache – klappt JSON, wie schnell ist das Modell?
+  const test = { running: false, prog: null, result: null, error: "" };
+  function testHtml() {
+    if (test.running) return RR.llmProgressHtml(test.prog || { phase: "prompt" });
+    if (test.error) return `<p class="small llm-test-res is-warn">${icon("alert")} ${esc(test.error)}</p>`;
+    const r = test.result;
+    if (!r) return `<p class="muted small">Schickt eine kleine Frage an ${esc(AI().state.model)} und prüft, ob die Antwort als JSON zurückkommt. Beim ersten Mal lädt Ollama das Modell (≈ 10–30 s).</p>`;
+    return `<p class="small llm-test-res">${icon("check")} <span><strong>Gemma antwortet.</strong> ${esc(r.model)} · JSON ok · ${r.tps ? `${r.tps.toFixed(1).replace(".", ",")} Token/s · ` : ""}${String(r.seconds).replace(".", ",")} s${r.loaded ? " (inkl. Modell laden)" : ""}<br><span class="muted">Antwort: ${r.themes.map(esc).join(" · ")}</span></span></p>`;
+  }
+  const paintTest = () => { const el = document.getElementById("llm-test-out"); if (el) el.innerHTML = testHtml(); };
+  async function runTest() {
+    if (test.running) return;
+    Object.assign(test, { running: true, prog: null, result: null, error: "" });
+    A().renderDrawer();
+    let tps = 0, loaded = false;
+    try {
+      const schema = { type: "object", required: ["themen"], properties: { themen: { type: "array", items: { type: "string" } } } };
+      const { data, meta } = await AI().chat({
+        system: "Du hilfst einer Nachrichtenredaktion. Antworte nur mit JSON.",
+        user: "Nenne drei Themen, über die jedes Jahr zum Oktoberfest berichtet wird – je zwei bis vier Wörter.",
+        schema, numPredict: 300, useCache: false,
+        onProgress: (p) => { test.prog = p; if (p.tps) tps = p.tps; if (p.loading) loaded = true; paintTest(); },
+      });
+      const themes = Array.isArray(data.themen) ? data.themen.filter((x) => typeof x === "string").slice(0, 5) : [];
+      if (!themes.length) throw new Error("Antwort kam an, aber nicht im erwarteten Format.");
+      test.result = { model: meta.model, seconds: meta.seconds, tps: meta.tps || tps, loaded, themes };
+    } catch (err) {
+      test.error = err.name === "AbortError" ? "Abgebrochen." : err.message;
+    } finally {
+      test.running = false;
+      if (S().drawer && S().drawer.kind === "settings") A().renderDrawer();
+    }
+  }
+
   RR.drawerSettings = function () {
     const st = AI().state;
     const c = AI().config;
@@ -45,6 +79,10 @@
             <button class="btn btn-ghost" type="button" data-act="llm-check">${icon("refresh")} Erneut prüfen</button>
           </div>
         </form>
+        ${st.status === "ok" ? `<div class="llm-test">
+          <button class="btn btn-secondary" type="button" data-act="llm-test" ${test.running ? "disabled" : ""}>${icon("play")} Gemma testen</button>
+          <div id="llm-test-out">${testHtml()}</div>
+        </div>` : ""}
         <div class="note-box">
           <p><strong>Datenschutz:</strong> Alles läuft auf diesem Gerät. Die App darf technisch nur mit sich selbst und mit Ollama auf <code>localhost</code> sprechen (Content-Security-Policy) – Artikel verlassen den Rechner nicht.</p>
           <p><strong>Tempo</strong> (gemma3:27b, MacBook M-Serie): ein Blueprint etwa 30–90 Sekunden, ein Story-Typ im Themenarchiv etwa 20–60 Sekunden. Beim ersten Aufruf lädt Ollama das Modell in den Speicher.</p>
@@ -80,7 +118,10 @@
   RR.llmProgressHtml = function (p, unit, count) {
     p = p || {};
     if (p.cached) return `<p class="llm-prog">${icon("check")} Aus dem lokalen Cache</p>`;
-    if (p.phase === "prompt" || !p.tokens) return `<p class="llm-prog"><span class="spinner"></span> ${p.elapsed > 1 ? `Gemma liest den Text … ${Math.round(p.elapsed)} s` : "Gemma liest den Text …"}</p>`;
+    if (p.phase === "prompt" || !p.tokens) {
+      const what = p.loading ? "Modell wird geladen, dann liest Gemma den Text" : "Gemma liest den Text";
+      return `<p class="llm-prog"><span class="spinner"></span> ${what} …${p.elapsed >= 1 ? ` ${Math.round(p.elapsed)} s` : ""}</p>`;
+    }
     return `<p class="llm-prog"><span class="spinner"></span> ${unit && count ? `${count} ${esc(unit)} · ` : ""}${p.tokens} Token${p.tps ? ` · ${p.tps.toFixed(1).replace(".", ",")} Token/s` : ""} · ${Math.round(p.elapsed || 0)} s</p>`;
   };
 
@@ -106,6 +147,7 @@
 
   Object.assign(RR.act, {
     "llm-check": () => AI().check(),
+    "llm-test": () => runTest(),
     "llm-cancel": () => AI().cancel(),
     "llm-clear-cache": async () => { await AI().clearCache(); toast("Cache geleert."); A().renderDrawer(); },
     "copy-cmd": (el) => RR.ui.copyText(el.dataset.cmd),

@@ -23,6 +23,7 @@
   const listeners = new Set();
   const emit = () => listeners.forEach((fn) => { try { fn(state); } catch (e) { /* ignorieren */ } });
   const active = new Set(); // laufende Anfragen (zum Abbrechen)
+  let warm = false; // erste Antwort dieser Sitzung da? Vorher lädt Ollama meist noch das Modell
 
   function setConfig(next) {
     const host = String(next.host || cfg.host).trim().replace(/\/+$/, "");
@@ -120,8 +121,10 @@
     const report = (phase) => {
       if (!onProgress) return;
       const secs = tFirst ? (performance.now() - tFirst) / 1000 : 0;
-      onProgress({ phase, tokens, tps: secs > 0.5 ? tokens / secs : 0, elapsed: (performance.now() - t0) / 1000, text });
+      onProgress({ phase, tokens, tps: secs > 0.5 ? tokens / secs : 0, elapsed: (performance.now() - t0) / 1000, text, loading: !warm });
     };
+    // bis zum ersten Token kommt nichts aus dem Stream (Modell laden, Text lesen): Sekunden trotzdem weiterzählen
+    const tick = onProgress ? setInterval(() => { if (!tFirst) report("prompt"); }, 1000) : null;
     try {
       if (onProgress) report("prompt");
       // ohne Content-Type-Header: einfache Anfrage ohne CORS-Vorabprüfung; Ollama liest den Body trotzdem als JSON
@@ -161,7 +164,9 @@
       throw e;
     } finally {
       active.delete(ctl);
+      if (tick) clearInterval(tick);
     }
+    warm = true;
     if (final && final.eval_count) tokens = final.eval_count;
     report("done");
 
@@ -171,7 +176,7 @@
       return chat({ system, user, schema, onProgress, numPredict: numPredict * 2, useCache });
     }
     if (!out) throw new Error("Gemma hat kein gültiges JSON geliefert.");
-    const meta = { model: state.model, tokens, seconds: Math.round((performance.now() - t0) / 100) / 10, promptTokens: final ? final.prompt_eval_count || 0 : 0 };
+    const meta = { model: state.model, tokens, seconds: Math.round((performance.now() - t0) / 100) / 10, promptTokens: final ? final.prompt_eval_count || 0 : 0, tps: final && final.eval_duration ? Math.round((final.eval_count / (final.eval_duration / 1e9)) * 10) / 10 : 0 };
     const result = { data: out, meta };
     if (useCache) await RR.store.put("cache", key, result);
     return result;
@@ -208,6 +213,15 @@
       if (n > score) { score = n; best = s; }
     }
     return score >= 3 && score / qw.size >= 0.75 ? best : null;
+  }
+
+  // Zitat zuerst im genannten Artikel suchen, dann in allen anderen
+  // (lokale Modelle verzählen sich bei der Artikelnummer gern um eins)
+  function locateAny(list, n, quote) {
+    const first = list[(n || 1) - 1];
+    const order = first ? [first, ...list.filter((a) => a !== first)] : list;
+    for (const a of order) { const s = locate(a, quote); if (s) return { a, s }; }
+    return null;
   }
 
   // amtliche Zahlen als bekannte Fakten (letzte fünf Jahrgänge)
@@ -300,10 +314,10 @@ Erstelle 6–12 Punkte. target_year ist das Jahr der nächsten Ausgabe. Antworte
       const cat = ["agent", "approve", "human"].includes(it.category) ? it.category : "human";
       const evidence = [];
       for (const ev of it.evidence || []) {
-        const a = articles[(ev.article || 1) - 1];
-        const s = a && locate(a, ev.quote || "");
-        if (s) evidence.push({ articleId: a.id, start: s.start, end: s.end, text: s.text, year: RR.text.sentenceYear(s.text, a.year), ay: a.year, title: a.title });
-        else dropped++;
+        const hit = locateAny(articles, ev.article, ev.quote || "");
+        const a = hit && hit.a, s = hit && hit.s;
+        if (hit && !evidence.some((e) => e.articleId === a.id && e.start === s.start)) evidence.push({ articleId: a.id, start: s.start, end: s.end, text: s.text, year: RR.text.sentenceYear(s.text, a.year), ay: a.year, title: a.title });
+        else if (!hit) dropped++;
       }
       const vals = cat === "agent" ? RR.archiveValues(evidence) : { unit: "", values: [] };
       const item = {
@@ -373,8 +387,8 @@ Antworte auf Deutsch und nur mit JSON.`;
     const { data, meta } = await chat({ system: TYPE_SYSTEM, user, schema: TYPE_SCHEMA, numPredict: 1500, onProgress });
     let dropped = 0;
     const aspects = (data.aspects || []).filter((x) => x && x.label).map((x) => {
-      const a = sample[(x.article || 1) - 1];
-      const s = a && locate(a, x.quote || "");
+      const hit = locateAny(sample, x.article, x.quote || "");
+      const a = hit && hit.a, s = hit && hit.s;
       if (!s) dropped++;
       return { label: x.label, quote: s ? s.text : null, title: s ? a.title : null, date: s ? a.date : null };
     });

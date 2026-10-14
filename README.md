@@ -14,7 +14,11 @@ Tested for Apple Silicon (M-series) with 32 GB or more; 64 GB is comfortable.
 
 1. **Install Ollama:** download from [ollama.com/download](https://ollama.com/download), move it to Applications and start it once.
 2. **Get the app:** on GitHub, "Code" → "Download ZIP" and unpack it (or `git clone`). No npm, no build step: every library and font is in the repo.
-3. **Double-click `start.command`.** On first launch macOS may say "unidentified developer": right-click → "Öffnen" (Open) → "Öffnen". If it doesn't start at all, run `chmod +x start.command start.sh stop.command` once in Terminal inside the folder.
+3. **Double-click `start.command`.** macOS may block it the first time ("unidentified developer" / "cannot be verified"). Then either:
+   - System Settings → Datenschutz & Sicherheit (Privacy & Security) → scroll down → "Dennoch öffnen" (Open Anyway), then double-click again; or
+   - **always works:** open Terminal, type `cd ` (with a space), drag the folder into the window, press Enter, then run `bash start.sh`.
+
+   Tip: `git clone` instead of the ZIP avoids the block entirely.
 4. The script checks Ollama, starts it if needed, offers to **download `gemma3:27b` once (≈ 17 GB)**, starts a web server that only this computer can reach (`127.0.0.1:8080`) and opens **http://localhost:8080**.
 5. Top right in the app: **"Gemma bereit"** (Gemma ready). On the start screen, choose "Gemma (lokal)" under "Analyse mit" (analyse with).
 
@@ -29,7 +33,7 @@ python3 -m http.server 8080 --bind 127.0.0.1
 ```
 
 ### Quick check (2 minutes)
-1. The header shows "Lokal" and "Gemma bereit". Clicking it shows the model and settings.
+1. The header shows "Lokal" and "Gemma bereit". Click it, then **"Gemma testen"** (test Gemma): you should see "JSON ok" and the speed in tokens/s. The first test includes loading the model (about 10–30 s).
 2. "Demo: Oktoberfest-Archiv" → "15 Story-Typen vertiefen". Gemma works through the story types (about 20–60 s each); the table gets "Gemma" badges, and the drawer shows core aspects with verbatim quotes.
 3. Run the same thing again: the answers now come from the local cache instantly.
 
