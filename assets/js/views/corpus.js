@@ -30,14 +30,14 @@
         <div class="ce-demos">
           <button class="btn btn-primary" data-act="corpus-demo" data-id="oktoberfest" type="button">${icon("play")} Demo: Oktoberfest-Archiv</button>
           <button class="btn btn-secondary" data-act="corpus-demo" data-id="wahl" type="button">${icon("play")} Demo: Landtagswahlen</button>
-          ${c ? `<button class="btn btn-ghost" data-act="go" data-to="corpus" type="button">Letzte Analyse öffnen</button>` : ""}
+          ${RR.svc && RR.svc.available && RR.svc.status && RR.svc.status.corpus ? `<button class="btn btn-secondary" data-act="go" data-to="analyse" type="button">${icon("archive")} Archiv-Analyse öffnen (${RR.svc.status.corpus.ok} Artikel)</button>` : c ? `<button class="btn btn-ghost" data-act="go" data-to="corpus" type="button">Letzte Analyse öffnen</button>` : ""}
         </div>
       </div>
       <label class="dropzone ce-drop" id="corpus-drop">
         <input type="file" id="corpus-input" multiple hidden accept=".zip,.txt,.md,.html,.htm,.docx,.pdf,.csv,.json">
         ${icon("archive", "dz-ic")}
         <strong>Archiv hierher ziehen</strong>
-        <span class="muted small">viele Dateien, ein ZIP oder ein Tabellen-Export (CSV/JSON mit Spalten wie datum, titel, text). Das Datum wird aus „Stand: …“, Metadaten oder dem Dateinamen gelesen.</span>
+        <span class="muted small">${RR.svc && RR.svc.available ? "Viele Dateien, ein ZIP (HTML-Seiten, Text) oder ein CMS-Export (CSV/JSON). Wird vom lokalen Analyse-Dienst gelesen: Datum aus den Metadaten, nur der Artikeltext ohne Teaser." : "viele Dateien, ein ZIP oder ein Tabellen-Export (CSV/JSON mit Spalten wie datum, titel, text). Das Datum wird aus „Stand: …“, Metadaten oder dem Dateinamen gelesen."}</span>
       </label>
     </section>`;
   };
@@ -45,10 +45,11 @@
   RR.bindCorpusEntry = function () {
     const dz = document.getElementById("corpus-drop");
     if (!dz) return;
-    document.getElementById("corpus-input").addEventListener("change", (e) => { loadFiles([...e.target.files]); e.target.value = ""; });
+    const go = (files) => (RR.svc && RR.svc.available ? RR.svc.upload(files) : loadFiles(files));
+    document.getElementById("corpus-input").addEventListener("change", (e) => { go([...e.target.files]); e.target.value = ""; });
     ["dragenter", "dragover"].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.add("is-over"); }));
     ["dragleave", "drop"].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.remove("is-over"); }));
-    dz.addEventListener("drop", (e) => loadFiles([...e.dataTransfer.files]));
+    dz.addEventListener("drop", (e) => go([...e.dataTransfer.files]));
   };
 
   async function loadFiles(files) {

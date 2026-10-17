@@ -19,7 +19,13 @@ Tested for Apple Silicon (M-series) with 32 GB or more; 64 GB is comfortable.
    - **always works:** open Terminal, type `cd ` (with a space), drag the folder into the window, press Enter, then run `bash start.sh`.
 
    Tip: `git clone` instead of the ZIP avoids the block entirely.
-4. The script checks Ollama, starts it if needed, offers to **download `gemma3:27b` once (≈ 17 GB)**, starts a web server that only this computer can reach (`127.0.0.1:8080`) and opens **http://localhost:8080**.
+4. The script:
+   - checks Ollama and starts it if needed;
+   - offers to **download `gemma3:27b` once (≈ 17 GB)**;
+   - installs **`uv`** once if it's missing (the Python environment for the archive analysis, ≈ 30 MB), loads the Python packages on first start, then starts the **local analysis service**, reachable only from this computer (`127.0.0.1:8080`);
+   - opens **http://localhost:8080**.
+
+   Recommended once: `ollama pull embeddinggemma` (≈ 600 MB). It makes the story groups more accurate.
 5. Top right in the app: **"Gemma bereit"** (Gemma ready). On the start screen, choose "Gemma (lokal)" under "Analyse mit" (analyse with).
 
 To stop: close the Terminal window or run `stop.command`; that also unloads Gemma from memory.
@@ -64,18 +70,34 @@ python3 -m http.server 8080 --bind 127.0.0.1
   - Answers are cached locally (IndexedDB), so the same analysis is instant the second time. It runs with a progress display (tokens/s) and can be cancelled at any time. If Ollama isn't running, the rule engine takes over.
 - **Agent:** works without internet. It uses the archive, the bundled city data and your own tables. Values for the new year without a source are simulated (marked "Demo") or carried over as suggestions to confirm. Emails and calls are **always simulated**.
 
-## Themenarchiv: analyse a whole archive
-Start screen → **"Ganzes Archiv analysieren"**. Upload every article about a recurring event, not just one story type. Upload as many files, a **ZIP**, or a **table export** (CSV/JSON with columns such as `datum`, `titel`, `text`). The tool answers three questions:
+## Archiv-Analyse: which stories come back, and when
+Start screen → **"Ganzes Archiv analysieren"** (analyse a whole archive) → drag a ZIP or files onto it (HTML pages, text, or a CMS export as CSV/JSON). When the app is started via `start.command`/`start.sh`, the **local analysis service** (`server/`, Python) does the work. Every step produces a table you can check and correct:
 
-1. **Which stories are written every time?** Articles are matched to known story types: for the Oktoberfest, e.g. poster, tent allocation, beer prices, build-up, security, run & tapping, parade, weather, Wiesn hit, mid-festival review, lost and found, medical service, police review, closing review; for elections, e.g. candidates, polls, voting advice, postal voting, election night, results, turnout, coalition. Articles that fit no known type are grouped by text similarity, so **new recurring stories are discovered** too.
-2. **When?** Each article's publication date is read from metadata, a "Stand: …" line, the text or the file name. It's placed relative to the event: the Wiesn start is computed (verified against the city's festival durations 1985–2025), and election day is detected in the text and can be edited. The **story calendar** shows the typical day and spread per type.
-3. **What is always in them?** The existing pattern recognition runs per story type. Aspects present in most articles become the core aspects, plus typical terms.
+| # | Step | What happens |
+|---|---|---|
+| 1 | **Import** | Structured page metadata (JSON-LD) supplies the date, headline and lead. For BR24 the text comes **only from the article body**: no teasers of other articles, no consent or newsletter boxes. Other websites go through `trafilatura`. Overview pages are skipped. Duplicates count only within 14 days; the same text a year later is the recurring story. Republished articles ("erstmals am … erschienen") keep their original date. The file date is never used. |
+| 2 | **Topic** | Detected from tags that appear in many articles *and* in headlines. Region tags such as "Oberbayern" drop out. Only clear cases are removed; Gemma decides the borderline cases. |
+| 3 | **Timeline & event days** | One cycle per year. The event days come, in this order, from: your correction → the date range named in the texts ("vom 19. September bis 4. Oktober") → the peak of coverage → estimated like the other years. An article belongs to the next event, unless it appears up to 45 days after one (follow-up). The view shows one lane per year with every article as a point. |
+| 4 | **Story cards** *(Gemma)* | Gemma reads every article once and records: topic yes/no, the core of the story in a few words, figures with quotes (checked against the text), and sources. This runs in the background, is cached and can be resumed, at about 20 s per article. |
+| 5 | **Grouping** | Text similarity (headline ×3, lead ×2, body), plus meaning similarity with `embeddinggemma`, plus the core from the story card. Hierarchical clustering. |
+| 6 | **Recurring or not** | **Recurring** = in at least 2 years, each with one article within ±45 days of an article from another year. Many articles in a single year (a major incident) are **not** recurring. Gemma checks every group, names it and removes outliers. You can rename groups and set "recurring/one-off". |
 
-Uploaded archives are stored **locally in the browser (IndexedDB)**, so they survive a reload or restart. "Archiv von diesem Gerät löschen" removes texts and results. Duplicates and near-empty files are skipped, and PDFs without a text layer are reported ("gescannt – Text fehlt").
+Next: the **blueprint per recurring story** (M2), built from the elements that appear every year, with evidence per year.
 
-From that the tool builds a **plan for the next edition** in real dates (exportable as `.ics`). For each story type, "Blueprint" opens the usual single-story flow with exactly those articles.
+**Command line** (for development and checking, each step on its own):
+```bash
+cd server
+uv run python -m rr --db ../data/rr.sqlite run ~/Desktop/archiv.zip   # everything, with Gemma if Ollama is running
+uv run python -m rr --db ../data/rr.sqlite groups                     # show the result
+uv run python -m rr --db ../data/rr.sqlite eval                       # measure against tests/expected_groups.json
+uv run python -m rr --db ../data/rr.sqlite tune                       # find the best threshold
+uv run python -m unittest discover -s tests -v                        # tests (made-up pages)
+```
+**Measured, not guessed:** `tests/expected_groups.json` contains the ground truth for the BR24 Oktoberfest archive (35 story groups, 162 assigned articles, 21 off-topic). It holds only article IDs (hashes of the URLs) and generic names, no content.
 
-Demo: "Demo: Oktoberfest-Archiv" (44 fictional articles, 2023–2025) and "Demo: Landtagswahlen" (2018 and 2023).
+With the rule engine alone (no model), the result is pairwise precision 0.89, recall 0.67, and **31 of 35 groups correctly recurring or one-off**. Gemma's story cards and the embeddings are meant to improve this further, but that has not been measured yet. To measure it on the Mac: `run`, then `eval`.
+
+Without the service (GitHub Pages, double-clicking `index.html`), the older in-browser Themenarchiv stays available, including the demo archives.
 
 ## Fact base (real data)
 The agent uses **real data tables** as its source wherever they answer a question. These results carry a source badge and link instead of "Demo".
@@ -91,7 +113,7 @@ The agent uses **real data tables** as its source wherever they answer a questio
 
 ## Running it
 - **On your device with Gemma:** see "Installation on the Mac" above (`start.command`).
-- Without Gemma: open `index.html` directly, or run `python3 -m http.server`. The rule engine works offline.
+- Without the analysis service: open `index.html` directly, or run `python3 -m http.server`. The rule engine and the in-browser Themenarchiv work offline.
 - **GitHub Pages** works too (rule engine only; Gemma needs the app on `localhost`).
 
 ## Structure
@@ -110,7 +132,9 @@ assets/js/ingest.js          File import (Word/PDF/ZIP via the bundled JSZip and
 assets/js/samples.js         Fictional demo articles
 assets/js/demo-data.js       Simulated current Wiesn prices
 assets/js/ui.js, app.js      UI helpers, state, navigation, drawer
-assets/js/views/*.js         One file per screen (llm-settings.js: the "Lokale KI" drawer)
+assets/js/views/*.js         One file per screen (analyse.js: archive analysis via the service; llm-settings.js: "Lokale KI")
+server/rr/                   Local analysis service: ingest, relevance, timeline, cards (Gemma), group, api, cli
+server/tests/                Tests (made-up pages) and the ground truth for the BR24 Oktoberfest archive
 assets/vendor/               JSZip 3.10.1 (MIT), pdf.js 3.11.174 (Apache-2.0), with licences
 assets/fonts/                Archivo, Source Sans 3, JetBrains Mono (SIL OFL 1.1), with licences
 start.command / start.sh     Start on the Mac / in a terminal; stop.command stops it

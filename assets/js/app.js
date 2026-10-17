@@ -171,6 +171,7 @@
   function reachable(id) {
     if (id === "home") return true;
     if (id === "corpus") return !!state.corpus;
+    if (id === "analyse") return !!(RR.svc && RR.svc.available);
     if (id === "archive") return !!state.analysis && state.articles.length > 0;
     return state.checklist.length > 0;
   }
@@ -203,7 +204,7 @@
       return `<li><button type="button" class="rail-step ${cls}" data-act="go" data-to="${sc.id}" ${can ? "" : "disabled"} ${sc.id === state.screen ? 'aria-current="step"' : ""}>
         <span class="rail-no">${i + 1}</span><span class="rail-text"><span class="rail-label">${sc.label}</span>${st ? `<span class="rail-sub">${esc(st)}</span>` : ""}</span></button></li>`;
     }).join("")}</ol>`;
-    document.getElementById("rail").hidden = (state.screen === "home" && !state.analysis) || state.screen === "corpus";
+    document.getElementById("rail").hidden = (state.screen === "home" && !state.analysis) || state.screen === "corpus" || state.screen === "analyse";
   }
 
   function render() {
@@ -321,8 +322,14 @@
     if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-act][role='button']")) { e.preventDefault(); e.target.click(); }
   });
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);
-  else setTimeout(render, 0);
+  // lokaler Analyse-Dienst (server/) vorhanden? Dann läuft das Themenarchiv dort.
+  const boot = () => {
+    if (state.screen === "analyse") state.screen = "home"; // erst nach der Prüfung wieder öffnen
+    render();
+    if (RR.svc) RR.svc.check().then((ok) => { if (ok && load() && load().screen === "analyse") state.screen = "analyse"; render(); });
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else setTimeout(boot, 0);
   // lokale KI (Ollama) prüfen; das Badge oben aktualisiert sich selbst
   RR.ai.check();
 })();

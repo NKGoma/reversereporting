@@ -1,1 +1,4 @@
 .rr-web.pid
+data/
+server/.venv/
+__pycache__/
