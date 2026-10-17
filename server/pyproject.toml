@@ -1,0 +1,15 @@
+[project]
+name = "reverse-reporting"
+version = "0.1.0"
+description = "Local pattern discovery for recurring news stories"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "trafilatura>=1.12",
+  "fastapi>=0.110",
+  "uvicorn>=0.29",
+  "python-multipart>=0.0.32",
+]
+
+[tool.uv]
+package = false
