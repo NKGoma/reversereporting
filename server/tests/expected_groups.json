@@ -1,0 +1,365 @@
+{
+ "_note": "Grundwahrheit für das BR24-Oktoberfest-Archiv (303 Dateien, Stand Okt. 2026). Nur Artikel-IDs (Hash der URL) und allgemeine Gruppennamen, keine Inhalte.",
+ "groups": {
+  "wiesn-motiv": {
+   "recurring": true,
+   "ids": [
+    "76c8161074eb",
+    "0022f1a3f5c3",
+    "2e666b19a600"
+   ]
+  },
+  "tischreservierung": {
+   "recurring": true,
+   "ids": [
+    "1fcde4bc57b0",
+    "b23df4e85476",
+    "70a50d55f8e6",
+    "42e16605a6eb",
+    "17671e229f6d",
+    "c31997744172"
+   ]
+  },
+  "bierpreis": {
+   "recurring": true,
+   "ids": [
+    "bbf2dd02b98d",
+    "9d0796a73e89",
+    "1aa352118f5f",
+    "61c3fc7a94d1"
+   ]
+  },
+  "wiesn-hit": {
+   "recurring": true,
+   "ids": [
+    "55d2055eb0c3",
+    "4b57e1f53c7b",
+    "25a61163f170",
+    "7276774ba721"
+   ]
+  },
+  "aufbau": {
+   "recurring": true,
+   "ids": [
+    "296422e37f7a",
+    "cc5b5828000a",
+    "84c41097c8fe",
+    "a6bd5cbde1a8"
+   ]
+  },
+  "was-ist-neu": {
+   "recurring": true,
+   "ids": [
+    "7a1f918dfb77",
+    "e16cbc388fc1",
+    "315ac034441f",
+    "84afff2a9073",
+    "62f794e1429f",
+    "ba58ed795579"
+   ]
+  },
+  "wetter": {
+   "recurring": true,
+   "ids": [
+    "da2be0f42fa6",
+    "c90445d37269",
+    "3e2e5064a45c",
+    "f4e63333ad95",
+    "f341105fde97"
+   ]
+  },
+  "sicherheitskonzept": {
+   "recurring": true,
+   "ids": [
+    "0845f122b238",
+    "b915b4670baa",
+    "7da62ef94556"
+   ]
+  },
+  "safe-space": {
+   "recurring": true,
+   "ids": [
+    "23c044c62bef",
+    "6724345b93a2"
+   ]
+  },
+  "anstich": {
+   "recurring": true,
+   "ids": [
+    "3f282375fbf1",
+    "310dbd3a962f",
+    "1c4eeae27437",
+    "2a05945b33eb",
+    "2d7377a0fa11",
+    "00f3a0b4b3d6",
+    "90d154829fec"
+   ]
+  },
+  "erster-tag-run": {
+   "recurring": true,
+   "ids": [
+    "cd9d57f1964a",
+    "e8af895f4e47",
+    "585861a643cd",
+    "c88b0f5a4335"
+   ]
+  },
+  "erstes-wochenende": {
+   "recurring": true,
+   "ids": [
+    "eeff9fd00f6c",
+    "30a2c347aedd"
+   ]
+  },
+  "trachtenzug": {
+   "recurring": true,
+   "ids": [
+    "51dc80793718",
+    "c73e4658503c"
+   ]
+  },
+  "gedenken-attentat": {
+   "recurring": true,
+   "ids": [
+    "fcb52c1eb353",
+    "d8ce18d92802",
+    "50aa5b8558d4",
+    "dd2bb139e738",
+    "60f658e97a52",
+    "c06a1ad613f9",
+    "4f81f4e4d191",
+    "d933b4f3add2"
+   ]
+  },
+  "zwischenbilanz": {
+   "recurring": true,
+   "ids": [
+    "8666e5d9debe",
+    "b701c19b044c"
+   ]
+  },
+  "schlussbilanz": {
+   "recurring": true,
+   "ids": [
+    "4ca22dada73a",
+    "e8f582fde231",
+    "995716672b74"
+   ]
+  },
+  "wiesn-grippe": {
+   "recurring": true,
+   "ids": [
+    "79109b1530e5",
+    "54d98147c6ab",
+    "434d825f244b",
+    "1f859c9a01bd",
+    "5dd3f045631e",
+    "bc59c3df4ea2",
+    "1b58a7609d78",
+    "a0a13cc52ae6",
+    "cf16d5926522"
+   ]
+  },
+  "familientag": {
+   "recurring": true,
+   "ids": [
+    "d9524a74adea",
+    "f1a1de4c0c1e"
+   ]
+  },
+  "tracht-trends": {
+   "recurring": true,
+   "ids": [
+    "26dbac72d89c",
+    "5a713e1393af"
+   ]
+  },
+  "adidas-dirndl": {
+   "recurring": true,
+   "ids": [
+    "db6003c1d4a0",
+    "1aa37d9700de"
+   ]
+  },
+  "untervermietung": {
+   "recurring": true,
+   "ids": [
+    "300f355f1dfa",
+    "abadec213a7b",
+    "19a3c3d32097",
+    "c4b00f698220"
+   ]
+  },
+  "upskirting-teufelsrad": {
+   "recurring": true,
+   "ids": [
+    "0f60023fbafe",
+    "d15adc72ba4f",
+    "5d4388d5ba23",
+    "ef5f6a4307b3",
+    "a2827d975922"
+   ]
+  },
+  "ueberfuellung": {
+   "recurring": true,
+   "ids": [
+    "48e92bcde67b",
+    "2b3661544a9a",
+    "b3b8e197bec5",
+    "5bb5a49cad46",
+    "b39b1248c9bf",
+    "9ee172569345",
+    "afaa61e676ed"
+   ]
+  },
+  "sexuelle-uebergriffe": {
+   "recurring": true,
+   "ids": [
+    "ddff93829220",
+    "1495abddf300",
+    "a41068d453fd",
+    "3b5f6124c87c",
+    "bbc3056e6fde",
+    "30e1dbf30e38"
+   ]
+  },
+  "fc-bayern-wiesn": {
+   "recurring": true,
+   "ids": [
+    "a7a755cf0956",
+    "1966f8eac336",
+    "147588050283",
+    "243b9ea42061"
+   ]
+  },
+  "sanitaeter-notfaelle": {
+   "recurring": true,
+   "ids": [
+    "6c25f81d6439",
+    "3af3a9b6a080",
+    "87193c0d2310"
+   ]
+  },
+  "br24-retro": {
+   "recurring": true,
+   "ids": [
+    "5bc689b3524c",
+    "2b618df995e0",
+    "45a2c12cc1f8",
+    "121b9ab4daf3",
+    "ef7a199660dd",
+    "61cf35fc341d",
+    "0dfae2100bb1",
+    "3487efb98b96",
+    "7e3592c6c47a",
+    "47e07a6ec3e7",
+    "e528f2f053b3"
+   ]
+  },
+  "bombendrohung-2025": {
+   "recurring": false,
+   "ids": [
+    "9925c2322157",
+    "d59903516a22",
+    "42567144b592",
+    "5e8ae883ef0e",
+    "9191cc588d5c",
+    "8893daab0a2e",
+    "d5c0568f6be8",
+    "2eb375211d84",
+    "3ad67b63e695",
+    "f27860c6a17a",
+    "bafc06ba187e",
+    "9c6c068e8b21",
+    "264934e03a08",
+    "6033644ebf13",
+    "ecc5597dbf10"
+   ]
+  },
+  "zeltvergabe-streit-2026": {
+   "recurring": false,
+   "ids": [
+    "76d16dc00f2c",
+    "b0e0cb3335ee",
+    "e18b3053deb7",
+    "ea87a80f482a",
+    "19bd3ee3d422",
+    "84761b08880a",
+    "4f3d391255e0",
+    "9a4498899137",
+    "f2c873ed5edf",
+    "28b88fed1cb0",
+    "4e54d20d89de"
+   ]
+  },
+  "hangover-unfall-2026": {
+   "recurring": false,
+   "ids": [
+    "fa8a7814a54e",
+    "f4fa6f28b771",
+    "4b19411a4fd4",
+    "88f023991473",
+    "a2ef27bbcf53"
+   ]
+  },
+  "teufelsrad-figuren-2026": {
+   "recurring": false,
+   "ids": [
+    "45a2ba481048",
+    "2c1822b2b01b",
+    "0d5d5cef7503"
+   ]
+  },
+  "predator-panne-2026": {
+   "recurring": false,
+   "ids": [
+    "0c48223bacd0",
+    "e7841f19d83d"
+   ]
+  },
+  "eintritt-debatte-2026": {
+   "recurring": false,
+   "ids": [
+    "19b48a521dd7",
+    "c059725ef7c8"
+   ]
+  },
+  "giesinger-braeu-2026": {
+   "recurring": false,
+   "ids": [
+    "e3f6a9b82e1c",
+    "507977196307"
+   ]
+  },
+  "breznbot": {
+   "recurring": false,
+   "ids": [
+    "5913fed3ff46",
+    "9cb59012990b"
+   ]
+  }
+ },
+ "off_topic": [
+  "f9a97395e433",
+  "5f2995e2ee6f",
+  "c4dcf307c8e8",
+  "86e42710bd21",
+  "353bfd6c0282",
+  "33c3fd4ec85d",
+  "c487d7052311",
+  "ba314cb9f3fc",
+  "dbaddd899938",
+  "097c8acbd29e",
+  "2c6c17c7914f",
+  "ed6075054776",
+  "4d7a405b3f5d",
+  "c0b8136d3aa7",
+  "cc58a604f409",
+  "3a2b6e5308f5",
+  "260a7f066b0f",
+  "dcd1ae8213d8",
+  "7e05af004a88",
+  "d6c05ba0ec28",
+  "692972c03744"
+ ]
+}
