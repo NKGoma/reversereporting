@@ -1,11 +1,11 @@
-"""Story-Karten: Gemma liest jeden Artikel einmal und hält fest, worum es geht.
+"""Story-Karten: Gemma liest jeden Artikel einmal, kurz und schnell.
 
-Die Karte ist allgemein gehalten (kein Oktoberfest-Wissen im Code):
-  topic    – geht es um das Thema (zentral), nur am Rand (nebenbei) oder gar nicht (nicht)?
-  angle    – der wiederkehrende Kern der Geschichte in 3–6 Wörtern, ohne Jahreszahl und Namen
-  summary  – ein Satz
-  facts    – Zahlen/Werte mit wörtlichem Beleg (wird im Text geprüft)
-  sources  – genannte Quellen und Ansprechpartner (Institution/Rolle)
+Für das Gruppieren reicht eine knappe Karte (kein Oktoberfest-Wissen im Code):
+  topic  – geht es um das Thema (zentral), nur am Rand (nebenbei) oder gar nicht (nicht)?
+  angle  – der wiederkehrende Kern der Geschichte in 3–6 Wörtern, ohne Jahreszahl und Namen
+Gemma liest dafür nur Überschrift, Vorspann und Textanfang und schreibt nur wenige Wörter:
+etwa 4–5 Sekunden pro Artikel statt 20. Zahlen mit Belegen und Quellen holt erst der Blueprint
+(nächster Schritt) – und nur für die Artikel wiederkehrender Geschichten.
 """
 from __future__ import annotations
 
@@ -13,61 +13,37 @@ from . import llm
 
 SCHEMA = {
     "type": "object",
-    "required": ["topic", "angle", "summary", "facts", "sources"],
+    "required": ["topic", "angle"],
     "properties": {
         "topic": {"type": "string", "enum": ["zentral", "nebenbei", "nicht"]},
         "angle": {"type": "string"},
-        "summary": {"type": "string"},
-        "facts": {"type": "array", "items": {"type": "object", "required": ["label", "value", "quote"],
-                                             "properties": {"label": {"type": "string"}, "value": {"type": "string"},
-                                                            "quote": {"type": "string"}}}},
-        "sources": {"type": "array", "items": {"type": "object", "required": ["name", "role"],
-                                               "properties": {"name": {"type": "string"}, "role": {"type": "string"}}}},
     },
 }
 
 
 def system_prompt(topic_terms: list[str]) -> str:
     t = " / ".join(topic_terms) or "das Thema des Archivs"
-    return f"""Du hilfst einer Nachrichtenredaktion, ein Archiv zu einem wiederkehrenden Thema ({t}) zu ordnen.
-Lies den Artikel und fülle die Karte aus. Antworte nur mit JSON.
-- topic: "zentral", wenn der Artikel hauptsächlich von {t} handelt; "nebenbei", wenn {t} nur am Rand vorkommt;
-  "nicht", wenn der Artikel eigentlich ein anderes Thema hat.
-- angle: Welche Art von Geschichte ist das? 3–6 Wörter, so allgemein, dass dieselbe Geschichte in einem anderen Jahr
-  denselben angle bekäme. Keine Jahreszahlen, keine Personennamen. Beispiele: "Bierpreis-Ankündigung",
-  "Wetterprognose zum Start", "Halbzeitbilanz mit Besucherzahlen", "Warnung vor Betrug bei Reservierungen".
-- summary: ein Satz, worum es geht.
-- facts: bis zu 6 konkrete Angaben (Preise, Zahlen, Termine, Orte) mit label, value und einem kurzen Zitat,
-  das WÖRTLICH aus dem Artikel kopiert ist.
-- sources: bis zu 6 Quellen, die im Artikel zu Wort kommen oder zitiert werden: name (Institution oder Funktion,
-  z. B. "Polizei München", "Wiesnchef"), role (z. B. "Pressestelle", "Veranstalter", "Experte")."""
+    return f"""Du ordnest ein Nachrichtenarchiv zum wiederkehrenden Thema {t}. Antworte nur mit JSON.
+topic: "zentral" (Artikel handelt hauptsächlich von {t}), "nebenbei" ({t} nur am Rand) oder "nicht" (anderes Thema).
+angle: Art der Geschichte in 3–6 Wörtern, so allgemein, dass dieselbe Geschichte in einem anderen Jahr denselben
+angle bekäme. Keine Jahreszahlen, keine Namen. Beispiele: "Bierpreis-Ankündigung", "Wetterprognose zum Start",
+"Halbzeitbilanz mit Besucherzahlen", "Warnung vor Betrug bei Reservierungen"."""
 
 
-def article_text(a: dict, limit: int = 3000) -> str:
+def article_text(a: dict, limit: int = 1200) -> str:
     body = a["body"] or ""
     if len(body) > limit:
         cut = body[:limit]
         body = cut[: max(cut.rfind(". "), limit // 2) + 1] + " […]"
-    return f"Datum: {a['date']}\nÜberschrift: {a['title']}\nVorspann: {a['lead']}\n\n{body}"
+    return f"Überschrift: {a['title']}\nVorspann: {a['lead']}\n\n{body}"
 
 
 def make_card(store, model: str, a: dict, topic_terms: list[str]) -> dict:
-    data = llm.chat_json(store, model, system_prompt(topic_terms), article_text(a), SCHEMA, num_predict=900)
-    full = "\n".join([a["title"], a["lead"], a["body"]])
-    facts, dropped = [], 0
-    for f in data.get("facts") or []:
-        q = llm.verify_quote(full, f.get("quote", ""))
-        if q:
-            facts.append({"label": f.get("label", ""), "value": f.get("value", ""), "quote": q})
-        else:
-            dropped += 1
+    data = llm.chat_json(store, model, system_prompt(topic_terms), article_text(a), SCHEMA,
+                         num_predict=60, num_ctx=2048)
     card = {
         "topic": data.get("topic") if data.get("topic") in ("zentral", "nebenbei", "nicht") else "zentral",
         "angle": (data.get("angle") or "").strip()[:80],
-        "summary": (data.get("summary") or "").strip()[:300],
-        "facts": facts[:6],
-        "sources": [s for s in (data.get("sources") or []) if s.get("name")][:6],
-        "dropped_quotes": dropped,
         "model": model,
     }
     store.cache_put("card:" + a["id"], card)

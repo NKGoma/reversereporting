@@ -64,7 +64,9 @@ fi
 if command -v uv >/dev/null 2>&1; then
   echo "Starte den Analyse-Dienst (beim ersten Mal werden die Python-Pakete geladen) …"
   (cd server && uv sync -q) || { echo "Python-Pakete konnten nicht installiert werden."; pause; exit 1; }
-  uv run --project server uvicorn rr.api:app --app-dir server --host 127.0.0.1 --port "$PORT" >/tmp/rr-web.log 2>&1 &
+  # caffeinate (macOS): Mac schläft nicht ein, solange der Dienst läuft – lange Gemma-Läufe brechen sonst ab
+  KEEP=""; command -v caffeinate >/dev/null 2>&1 && KEEP="caffeinate -is"
+  $KEEP uv run --project server uvicorn rr.api:app --app-dir server --host 127.0.0.1 --port "$PORT" >/tmp/rr-web.log 2>&1 &
   WEB=$!
 else
   echo "Ohne uv: nur die App im Browser (ohne Archiv-Analyse-Dienst)."
